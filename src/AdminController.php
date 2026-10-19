@@ -237,7 +237,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             $s = Repo::upsert(['email' => $email, 'name' => (string) ($parts[1] ?? ''), 'source' => 'import', 'status' => $proof ? 'active' : 'pending',
                 'consent' => $proof ? __('Import: {text}', ['text' => $proofText]) : '']);
             if ($proof) Repo::setLists((int) $s['id'], [$list]);
-            else { Repo::update((int) $s['id'], ['pending_lists' => (string) $list, 'consent_at' => Repo::now()]); Signup::sendConfirm($s); }
+            else { Repo::update((int) $s['id'], ['pending_lists' => (string) $list, 'consent_at' => Repo::now()]); Signup::sendConfirm(['pending_lists' => (string) $list] + $s); }
             $n['new']++;
         }
         return $this->to('/admin/newsletter/empfaenger', 'success', __('Import: {new} neu, {skip} schon vorhanden, {blocked} gesperrt, {bad} ungültig.', $n)

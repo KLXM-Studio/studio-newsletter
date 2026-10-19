@@ -9,7 +9,9 @@ use Klxm\Newsletter\Newsletter;
 use Klxm\Newsletter\Repo;
 
 $on = Newsletter::on();
-$lists = $on ? Repo::lists(true) : [];
+// Angebot: im Block gewählte Verteiler (auch interne), sonst alle öffentlichen
+$chosen = array_values(array_filter(array_map('intval', (array) ($d['lists'] ?? []))));
+$lists = $on ? array_values(array_filter(Repo::lists(), fn($l) => $chosen ? in_array((int) $l['id'], $chosen, true) : (int) $l['public'] === 1)) : [];
 $id = 'nl-' . substr(md5((string) ($b->id ?? uniqid())), 0, 6);
 ?>
 <div class="<?= e(app()->theme->def['container_class'] ?? 'wrap') ?> nl-block">
@@ -22,6 +24,7 @@ $id = 'nl-' . substr(md5((string) ($b->id ?? uniqid())), 0, 6);
   <form class="nl-form" method="post" action="<?= e(url(Newsletter::BASE . '/anmelden')) ?>" data-nl data-token-url="<?= e(url(Newsletter::BASE . '/token')) ?>" data-error="<?= e(lt('Die Anmeldung hat nicht geklappt. Bitte versuchen Sie es erneut.')) ?>" data-error-network="<?= e(lt('Keine Verbindung – bitte versuchen Sie es erneut.')) ?>" novalidate>
     <input type="hidden" name="_token" value="" data-nl-token>
     <input type="hidden" name="_pow" value="" data-nl-pow>
+    <input type="hidden" name="offer" value="<?= e(Newsletter::signOffer(array_column($lists, 'id'))) ?>">
     <div class="nl-hp" aria-hidden="true"><label><?= e(lt('Bitte leer lassen')) ?><input type="text" name="<?= e(\Core\SpamGuard::HONEYPOT) ?>" tabindex="-1" autocomplete="off"></label></div>
     <div class="nl-form__row">
       <?php if (!empty($d['ask_name'])): ?>

@@ -26,7 +26,7 @@ use Klxm\Newsletter\SiteController;
 return [
     'name' => 'newsletter',
     'label' => 'Newsletter – Anmeldung, Versand, Rückläufer',
-    'version' => '0.1.0',
+    'version' => '0.2.0',
     'requires' => '>=1.0.0',
     'description' => 'Newsletter mit Double-Opt-in, Verteilern und gedrosseltem Versand – über den eigenen SMTP-Server (Rückläufer per IMAP) oder Mailjet (SMTP oder API, Rückläufer per Webhook). Hard und Soft Bounces, Beschwerden und Sperrliste.',
     'author' => 'KLXM Crossmedia GmbH and contributors',
@@ -55,11 +55,20 @@ return [
         $x->mailPurpose('send', 'Newsletter versenden', 'Ausgaben und Bestätigungsmails der Newsletter-Erweiterung');
         $x->mailTransport('mailjet', 'Mailjet (API)', fn(array $acc) => Klxm\Newsletter\MailjetTransport::fromAccount($acc));
 
+        // Verteiler zur Auswahl im Block: nur in der Verwaltung laden (Editor-Formular, Speichern) – auf der Website keine Abfrage
+        $listOptions = [];
+        // (Erweiterungen starten vor der Anfrage – deshalb die aufgerufene Adresse, auch bei eigener Verwaltungsadresse)
+        $uri = PHP_SAPI === 'cli' ? '' : (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+        if ($uri !== '' && str_starts_with($uri . '/', rtrim(url('/admin'), '/') . '/')) {
+            try { foreach (Repo::lists() as $l) $listOptions[(string) $l['id']] = $l['name'] . ((int) $l['public'] ? '' : ' (' . __('intern') . ')'); } catch (\Throwable) {}
+        }
         $x->blocks(['newsletter_signup' => ['label' => __('Newsletter-Anmeldung'), 'icon' => 'envelope-simple', 'group' => 'Formulare',
             'help' => __('Formular zur Anmeldung mit Bestätigung per E-Mail (Double-Opt-in). Verteiler und Texte: Verwaltung → Newsletter.'),
             'fields' => [
                 ['name' => 'title', 'label' => __('Überschrift'), 'type' => 'text', 'max' => 120, 'default' => 'Newsletter abonnieren'],
                 ['name' => 'text', 'label' => __('Text (optional)'), 'type' => 'richtext'],
+                ['name' => 'lists', 'label' => __('Angebotene Verteiler'), 'type' => 'multiselect', 'options' => $listOptions,
+                    'help' => __('Leer = alle öffentlichen Verteiler. Gewählte Verteiler erscheinen auch, wenn sie intern sind – so bekommt eine Seite ihren eigenen Newsletter.')],
                 ['name' => 'ask_name', 'label' => __('Nach dem Namen fragen (freiwillig)'), 'type' => 'bool'],
                 ['name' => 'button', 'label' => __('Beschriftung des Knopfs'), 'type' => 'text', 'max' => 40, 'default' => 'Anmelden'],
             ]]]);

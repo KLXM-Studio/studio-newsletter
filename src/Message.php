@@ -18,7 +18,8 @@ final class Message
     /** Ausgabe an einen Empfänger ($sub id 0 = Testversand an eine Adresse ohne Empfängerdatensatz) */
     public static function campaign(array $c, array $sub, bool $test = false): array
     {
-        $unsub = (int) ($sub['id'] ?? 0) > 0 ? Newsletter::unsubscribeUrl($sub) : absolute_url(Newsletter::BASE . '/abmelden');
+        $list = Repo::primaryList(Repo::campaignLists($c));
+        $unsub = (int) ($sub['id'] ?? 0) > 0 ? Newsletter::unsubscribeUrl($sub, (int) $c['id']) : absolute_url(Newsletter::BASE . '/abmelden');
         $vars = ['name' => (string) ($sub['name'] ?? ''), 'email' => (string) ($sub['email'] ?? ''), 'unsubscribe' => $unsub, 'webversion' => Newsletter::webUrl($c),
             'site' => self::siteName()];
         $subject = Template::fill((string) $c['subject'], $vars);
@@ -27,12 +28,12 @@ final class Message
             'body' => self::absoluteLinks(Template::fill(rich((string) $c['body']), $vars, true)),
             'image' => self::imageUrl((int) $c['image']), 'button_label' => (string) $c['button_label'], 'button_href' => self::href((string) $c['button_link']),
             'unsubscribe' => $unsub, 'webversion' => $vars['webversion'], 'test' => $test,
-        ]);
-        return self::envelope($subject, $html, (int) $c['id'], $sub, $unsub);
+        ], $list);
+        return self::envelope($subject, $html, (int) $c['id'], $sub, $unsub) + ['via' => (string) ($list['account'] ?? '')];
     }
 
     /** Bestätigungsmail (Double-Opt-in) – reiner Text plus schlichtes HTML */
-    public static function confirm(array $sub): array
+    public static function confirm(array $sub, ?array $list = null): array
     {
         $vars = ['name' => (string) ($sub['name'] ?: lt('Leserin, lieber Leser')), 'site' => self::siteName(), 'link' => Newsletter::confirmUrl($sub), 'days' => (string) Newsletter::CONFIRM_DAYS];
         $subject = Template::fill(Newsletter::text('doi_subject'), $vars);
@@ -40,14 +41,14 @@ final class Message
         $paras = '';
         foreach (preg_split("~\n\s*\n~", $text) ?: [] as $p) {
             $p = trim($p);
-            if ($p === $vars['link']) { $paras .= '<p><a href="' . e($vars['link']) . '" style="display:inline-block;padding:12px 22px;border-radius:6px;background:' . e(self::color()) . ';color:#ffffff;text-decoration:none;font-weight:700">' . e(lt('Anmeldung bestätigen')) . '</a></p>'; continue; }
+            if ($p === $vars['link']) { $paras .= '<p><a href="' . e($vars['link']) . '" style="display:inline-block;padding:12px 22px;border-radius:6px;background:' . e(self::color($list)) . ';color:#ffffff;text-decoration:none;font-weight:700">' . e(lt('Anmeldung bestätigen')) . '</a></p>'; continue; }
             $paras .= '<p>' . nl2br(e($p)) . '</p>';
         }
         $html = self::layout(['subject' => $subject, 'preheader' => '', 'body' => $paras, 'image' => '', 'button_label' => '', 'button_href' => '',
-            'unsubscribe' => '', 'webversion' => '', 'test' => false]);
+            'unsubscribe' => '', 'webversion' => '', 'test' => false], $list);
         $m = self::envelope($subject, $html, 0, $sub, '');
         $m['text'] = $text;   // eigener Text statt Umwandlung (Link vollständig)
-        return $m;
+        return $m + ['via' => (string) ($list['account'] ?? '')];
     }
 
     /** HTML für die Webversion (ohne persönliche Angaben) */
@@ -56,7 +57,8 @@ final class Message
         $vars = ['name' => '', 'email' => '', 'unsubscribe' => '', 'webversion' => '', 'site' => self::siteName()];
         return self::layout(['subject' => Template::fill((string) $c['subject'], $vars), 'preheader' => '',
             'body' => self::absoluteLinks(Template::fill(rich((string) $c['body']), $vars, true)), 'image' => self::imageUrl((int) $c['image']),
-            'button_label' => (string) $c['button_label'], 'button_href' => self::href((string) $c['button_link']), 'unsubscribe' => '', 'webversion' => '', 'test' => false]);
+            'button_label' => (string) $c['button_label'], 'button_href' => self::href((string) $c['button_link']), 'unsubscribe' => '', 'webversion' => '', 'test' => false],
+            Repo::primaryList(Repo::campaignLists($c)));
     }
 
     private static function envelope(string $subject, string $html, int $campaign, array $sub, string $unsub): array
@@ -80,9 +82,11 @@ final class Message
         ];
     }
 
-    private static function layout(array $v): string
+    /** $list: Verteiler mit eigenem Auftritt (Fußzeile, Farbe) – leere Angaben → Einstellungen des Newsletters */
+    private static function layout(array $v, ?array $list = null): string
     {
-        $v += ['site' => self::siteName(), 'color' => self::color(), 'footer' => trim((string) Newsletter::get('footer', '')), 'lang' => app()->lang ?? 'de'];
+        $footer = trim((string) ($list['footer'] ?? ''));
+        $v += ['site' => self::siteName(), 'color' => self::color($list), 'footer' => $footer !== '' ? $footer : trim((string) Newsletter::get('footer', '')), 'lang' => app()->lang ?? 'de'];
         return \Core\Theme::capture(dirname(__DIR__) . '/views/mail/layout.php', $v);
     }
 
@@ -91,9 +95,9 @@ final class Message
         return site_name();
     }
 
-    public static function color(): string
+    public static function color(?array $list = null): string
     {
-        $c = (string) Newsletter::get('color', '');
+        $c = (string) ($list['color'] ?? '') ?: (string) Newsletter::get('color', '');
         return preg_match('~^#[0-9a-f]{6}$~i', $c) ? $c : '#1f3a5f';
     }
 

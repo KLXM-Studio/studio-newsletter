@@ -21,3 +21,5 @@
 .nl-page h1{margin:0}
 .nl-page form{margin:0}
 .nl-form [aria-invalid=true]{outline:2px solid #b42318;outline-offset:2px}
+.nl-actions{display:flex;flex-wrap:wrap;gap:.75rem}
+.nl-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

@@ -6,6 +6,13 @@
     <li><b>Newsletter → Einstellungen:</b> Versandart wählen, Absenderangaben für den Fuß (Name, Anschrift – Pflicht wie im Impressum) und bei Bedarf Texte der Einwilligung und der Bestätigungsmail anpassen.</li>
     <li><b>Anmeldung auf der Website:</b> den Block <b>„Newsletter-Anmeldung“</b> auf einer Seite einfügen (Gruppe „Formulare“). Mit zwei oder mehr öffentlichen Verteilern können Besucher Themen wählen.</li>
   </ol>
+  <h3>Mehrere Newsletter (Verteiler)</h3>
+  <ul>
+    <li>Unter <b>Newsletter → Verteiler</b> legen Sie beliebig viele Newsletter an, z. B. „Vereins-News“ und „Presse“. <b>Öffentliche</b> Verteiler stehen im Anmeldeformular zur Wahl, <b>interne</b> nur, wenn ein Block sie ausdrücklich anbietet.</li>
+    <li>Jeder Verteiler kann einen <b>eigenen Auftritt</b> haben: Fußzeile mit Absenderangaben, Farbe und – optional – ein eigenes E-Mail-Konto als Absender (z. B. presse@… statt news@…). Leer = wie in den Einstellungen. Eine Ausgabe an mehrere Verteiler trägt den Auftritt des ersten (Reihenfolge der Liste).</li>
+    <li>Im Block <b>„Newsletter-Anmeldung“</b> wählen Sie unter „Angebotene Verteiler“, welche Newsletter er anbietet – so bekommt jede Seite ihren eigenen. Leer = alle öffentlichen.</li>
+    <li><b>Abmelden</b>: Die Abmeldeseite zeigt die eigenen Newsletter mit Häkchen (vorausgewählt: die der gerade erhaltenen Ausgabe) und „Alle abbestellen“. Die Ein-Klick-Abmeldung im E-Mail-Programm meldet nur vom Newsletter dieser Ausgabe ab. Wer keinen Newsletter mehr hat, gilt als abgemeldet.</li>
+  </ul>
   <h3>Versandarten</h3>
   <ul>
     <li><b>Eigener SMTP-Server:</b> Versand über Ihr Konto. Für die Rückläufer eine <b>Rücklaufadresse</b> (z. B. bounce@news.ihre-domain.de) und deren IMAP-Zugang eintragen – die Erweiterung holt unzustellbare Mails alle 5 Minuten ab und wertet sie aus.</li>

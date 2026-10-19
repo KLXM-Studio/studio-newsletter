@@ -38,6 +38,9 @@ final class Repo implements Store
                 ->column('name', 'string', ['length' => 120, 'null' => false])
                 ->column('description', 'string', ['length' => 191, 'default' => ''])
                 ->column('public', 'bool', ['default' => true])
+                ->column('account', 'string', ['length' => 64, 'default' => ''])
+                ->column('footer', 'text')
+                ->column('color', 'string', ['length' => 7, 'default' => ''])
                 ->column('sort', 'int', ['default' => 0])
                 ->column('created_at', 'datetime'),
             'newsletter_subscribers' => fn(Table $t) => $t->id()
@@ -135,7 +138,11 @@ final class Repo implements Store
 
     public static function saveList(int $id, array $v): int
     {
-        $data = ['name' => mb_substr(trim((string) $v['name']), 0, 120), 'description' => mb_substr(trim((string) ($v['description'] ?? '')), 0, 191), 'public' => !empty($v['public']) ? 1 : 0];
+        $color = (string) ($v['color'] ?? '');
+        $acc = (string) ($v['account'] ?? '');
+        $data = ['name' => mb_substr(trim((string) $v['name']), 0, 120), 'description' => mb_substr(trim((string) ($v['description'] ?? '')), 0, 191), 'public' => !empty($v['public']) ? 1 : 0,
+            'account' => $acc !== '' && \Core\Mail\Accounts::find($acc) ? $acc : '', 'footer' => mb_substr(trim((string) ($v['footer'] ?? '')), 0, 600),
+            'color' => preg_match('~^#[0-9a-f]{6}$~i', $color) && !empty($v['own_color']) ? strtolower($color) : ''];
         if ($id > 0) { self::db()->update('newsletter_lists', $data, 'id = :wid', ['wid' => $id]); return $id; }
         $data['sort'] = (int) self::db()->fetchValue('SELECT COALESCE(MAX(sort), 0) + 1 FROM newsletter_lists');
         return self::db()->insert('newsletter_lists', $data + ['created_at' => self::now()]);
@@ -279,6 +286,25 @@ final class Repo implements Store
     {
         self::db()->query('DELETE FROM newsletter_queue WHERE campaign_id = ?', [$id]);
         self::db()->query('DELETE FROM newsletter_campaigns WHERE id = ?', [$id]);
+    }
+
+    /**
+     * Verteiler, dessen Auftritt eine Ausgabe trägt (Absender-Konto, Fußzeile, Farbe): der erste der gewählten in der
+     * Reihenfolge der Verteiler. Leere Angaben fallen auf die Einstellungen des Newsletters zurück.
+     */
+    public static function primaryList(array $ids): ?array
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (!$ids) return null;
+        return self::db()->fetch('SELECT * FROM newsletter_lists WHERE id IN (' . implode(',', $ids) . ') ORDER BY sort, id LIMIT 1');
+    }
+
+    /** Verteiler entfernen; ohne Verteiler gilt der Empfänger als abgemeldet */
+    public static function removeLists(int $subscriber, array $lists): bool
+    {
+        $lists = array_values(array_filter(array_map('intval', $lists)));
+        if ($lists) self::db()->query('DELETE FROM newsletter_subscriber_lists WHERE subscriber_id = ? AND list_id IN (' . implode(',', $lists) . ')', [$subscriber]);
+        return !self::listIds($subscriber);
     }
 
     /** @return list<int> */

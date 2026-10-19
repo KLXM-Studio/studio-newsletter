@@ -5,3 +5,9 @@
 .nl-scroll{overflow-x:auto}
 .nl-pager{display:flex;gap:1rem;align-items:center;justify-content:center;margin-top:1rem}
 .nl-preview{display:block;width:100%;height:70vh;border:1px solid currentColor;border-radius:8px;opacity:.95}
+.nl-listform{display:grid;gap:.75rem}
+.nl-listform__grid{display:grid;gap:.75rem 1.25rem;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))}
+.nl-listform__wide{grid-column:1/-1}
+.nl-listform .f{margin:0}
+.nl-label{display:block;font-weight:600;margin-bottom:.35rem}
+.nl-inline-check{display:inline-flex;gap:.35rem;align-items:center;margin-right:.75rem}

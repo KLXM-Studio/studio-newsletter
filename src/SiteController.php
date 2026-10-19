@@ -62,7 +62,8 @@ final class SiteController
             : $this->page(lt('Bitte bestätigen'), lt('Fast geschafft: Bitte bestätigen Sie Ihre Anmeldung über den Link in der E-Mail, die wir Ihnen gerade geschickt haben.'));
         if (!$spam['ok']) return !empty($spam['silent']) ? $done() : $fail((string) ($spam['error'] ?? lt('Bitte versuchen Sie es erneut.')));
         if (empty($in['consent'])) return $fail(lt('Bitte bestätigen Sie, dass Sie den Newsletter erhalten möchten.'), 'consent');
-        $res = Signup::subscribe((string) ($in['email'] ?? ''), mb_substr(trim((string) ($in['name'] ?? '')), 0, 120), (array) ($in['lists'] ?? []), $r->ip());
+        $res = Signup::subscribe((string) ($in['email'] ?? ''), mb_substr(trim((string) ($in['name'] ?? '')), 0, 120), (array) ($in['lists'] ?? []), $r->ip(), 'form',
+            Newsletter::verifyOffer((string) ($in['offer'] ?? '')));
         return $res['ok'] ? $done() : $fail((string) $res['error'], (string) ($res['field'] ?? ''));
     }
 
@@ -82,8 +83,12 @@ final class SiteController
         $sub = Newsletter::fromToken('unsub', $token);
         if (!$sub) return $this->page(lt('Link ungültig'), lt('Dieser Abmeldelink ist ungültig. Bitte nutzen Sie den Link aus der neuesten Ausgabe.'), 404);
         if (!in_array($sub['status'], ['active', 'pending'], true)) return $this->page(lt('Abgemeldet'), lt('Sie sind bereits abgemeldet.'));
-        return $this->page(lt('Newsletter abbestellen'), lt('Möchten Sie den Newsletter an {email} abbestellen?', ['email' => self::mask((string) $sub['email'])]), 200, 'unsubscribe',
-            ['action' => url(Newsletter::BASE . '/abmelden/' . $token)]);
+        $mine = Repo::listIds((int) $sub['id']);
+        $lists = array_values(array_filter(Repo::lists(), fn($l) => in_array((int) $l['id'], $mine, true)));
+        $c = ($cid = (int) ($r->query['a'] ?? 0)) ? Repo::campaign($cid) : null;
+        $pre = $c ? array_values(array_intersect(Repo::campaignLists($c), $mine)) : [];
+        return $this->page(lt('Newsletter abbestellen'), lt('Welche Newsletter möchten Sie an {email} nicht mehr erhalten?', ['email' => self::mask((string) $sub['email'])]), 200, 'unsubscribe',
+            ['action' => url(Newsletter::BASE . '/abmelden/' . $token) . ($c ? '?a=' . (int) $c['id'] : ''), 'lists' => $lists, 'checked' => $pre ?: array_column($lists, 'id')]);
     }
 
     public function unsubscribe(Request $r, string $token): Response
@@ -92,8 +97,20 @@ final class SiteController
         $sub = Newsletter::fromToken('unsub', $token);
         $oneClick = ($r->post['List-Unsubscribe'] ?? '') === 'One-Click';
         if (!$sub) return $oneClick ? new Response('', 404) : $this->page(lt('Link ungültig'), lt('Dieser Abmeldelink ist ungültig.'), 404);
-        Signup::unsubscribe($sub, $oneClick ? 'oneclick' : 'link');
-        if ($oneClick) return new Response('', 200, ['Content-Type' => 'text/plain']);
+        $c = ($cid = (int) ($r->query['a'] ?? 0)) ? Repo::campaign($cid) : null;
+        if ($oneClick) {
+            // E-Mail-Programm: von den Verteilern dieser Ausgabe abmelden (ohne Ausgabe: von allen)
+            Signup::unsubscribe($sub, 'oneclick', $c ? Repo::campaignLists($c) : null, (int) ($c['id'] ?? 0));
+            return new Response('', 200, ['Content-Type' => 'text/plain']);
+        }
+        $all = !empty($r->post['all']);
+        $lists = $all ? null : array_map('intval', (array) ($r->post['lists'] ?? []));
+        if ($lists === []) return $this->page(lt('Nichts ausgewählt'), lt('Bitte wählen Sie mindestens einen Newsletter aus.'), 422);
+        Signup::unsubscribe($sub, 'link', $lists, (int) ($c['id'] ?? 0));
+        $left = Repo::find((int) $sub['id']);
+        if ($left && $left['status'] === 'active') {
+            return $this->page(lt('Abgemeldet'), lt('Erledigt. Andere Newsletter erhalten Sie weiterhin – über den Link in der nächsten Ausgabe können Sie auch diese abbestellen.'));
+        }
         return $this->page(lt('Abgemeldet'), lt('Sie wurden abgemeldet und erhalten keinen Newsletter mehr.'));
     }
 

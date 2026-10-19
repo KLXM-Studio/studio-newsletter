@@ -41,4 +41,10 @@ return [
     'optional' => 'optional',
     "Hallo {name},\n\nbitte bestätigen Sie Ihre Anmeldung zum Newsletter von {site} mit diesem Link:\n\n{link}\n\nDer Link ist {days} Tage gültig. Wenn Sie sich nicht angemeldet haben, ignorieren Sie diese E-Mail einfach – Sie erhalten dann keine weiteren Nachrichten."
         => "Hello {name},\n\nplease confirm your subscription to the newsletter of {site} with this link:\n\n{link}\n\nThe link is valid for {days} days. If you did not subscribe, simply ignore this email – you will not receive any further messages.",
+    'Alle abbestellen' => 'Unsubscribe from all',
+    'Ausgewählte abbestellen' => 'Unsubscribe from selected',
+    'Bitte wählen Sie mindestens einen Newsletter aus.' => 'Please select at least one newsletter.',
+    'Erledigt. Andere Newsletter erhalten Sie weiterhin – über den Link in der nächsten Ausgabe können Sie auch diese abbestellen.' => 'Done. You will keep receiving your other newsletters – you can unsubscribe from them too via the link in the next issue.',
+    'Nichts ausgewählt' => 'Nothing selected',
+    'Welche Newsletter möchten Sie an {email} nicht mehr erhalten?' => 'Which newsletters should {email} no longer receive?',
 ];

@@ -19,13 +19,15 @@ final class Signup
      * @param list<int> $lists gewünschte Verteiler (nur öffentliche; leer = erster Verteiler)
      * @return array{ok: bool, error?: string, field?: string}
      */
-    public static function subscribe(string $email, string $name, array $lists, string $ip, string $source = 'form'): array
+    public static function subscribe(string $email, string $name, array $lists, string $ip, string $source = 'form', array $offered = []): array
     {
         $email = Address::normalize($email);
         if (!Address::valid($email)) return ['ok' => false, 'error' => lt('Bitte geben Sie eine gültige E-Mail-Adresse ein.'), 'field' => 'email'];
         if (!Address::mailDomain($email)) return ['ok' => false, 'error' => lt('Für diese E-Mail-Adresse gibt es keinen Mailserver. Bitte prüfen Sie die Schreibweise.'), 'field' => 'email'];
-        $public = array_map('intval', array_column(Repo::lists(true), 'id'));
-        $lists = array_values(array_intersect(array_map('intval', $lists), $public)) ?: [Repo::defaultList()];
+        // erlaubt: öffentliche Verteiler und die (signiert) vom Block angebotenen; ohne Wahl: das Angebot bzw. der erste Verteiler
+        $existing = array_map('intval', array_column(Repo::lists(), 'id'));
+        $allowed = array_values(array_intersect(array_unique(array_merge(array_map('intval', array_column(Repo::lists(true), 'id')), $offered)), $existing));
+        $lists = array_values(array_intersect(array_map('intval', $lists), $allowed)) ?: (array_values(array_intersect($offered, $existing)) ?: [Repo::defaultList()]);
 
         // Höchstens 3 Bestätigungsmails je Adresse und Tag – sonst ließe sich jemand mit Bestätigungen zuschütten
         $rl = new RateLimiter(app()->db);
@@ -51,14 +53,16 @@ final class Signup
         }
         Repo::update((int) $sub['id'], ['pending_lists' => implode(',', $lists)]);
         $rl->hit($k);
-        self::sendConfirm($sub);
+        self::sendConfirm(['pending_lists' => implode(',', $lists)] + $sub);
         return ['ok' => true];
     }
 
     public static function sendConfirm(array $sub): ?string
     {
-        $m = Message::confirm($sub);
+        $pending = array_filter(array_map('intval', explode(',', (string) ($sub['pending_lists'] ?? ''))));
+        $m = Message::confirm($sub, Repo::primaryList($pending));
         $o = ['purpose' => Newsletter::PURPOSE, 'html' => $m['html'], 'headers' => array_diff_key($m['headers'], ['Precedence' => 1, 'List-Id' => 1]), 'message_id' => $m['message_id']];
+        if ($m['via'] !== '') $o['via'] = $m['via'];
         if ($m['return_path'] !== '') $o['return_path'] = $m['return_path'];
         $err = Mailer::send($m['subject'], $m['text'], [$m['to']], $o);
         if ($err) error_log('[newsletter] Bestätigung an #' . (int) $sub['id'] . ': ' . $err);
@@ -81,14 +85,29 @@ final class Signup
         return 'ok';
     }
 
-    public static function unsubscribe(array $sub, string $how = 'link'): void
+    /**
+     * Abmelden – von allen Verteilern ($lists null) oder nur von einzelnen. Bleibt kein Verteiler übrig, ist der Empfänger abgemeldet.
+     * $campaign: Ausgabe, aus der abgemeldet wurde (Zähler im Bericht); 0 = die zuletzt versendete
+     */
+    public static function unsubscribe(array $sub, string $how = 'link', ?array $lists = null, int $campaign = 0): void
     {
         if (!in_array($sub['status'], ['active', 'pending'], true)) return;
-        (new Repo())->updateSubscriber((int) $sub['id'], ['status' => 'unsubscribed']);
-        app()->db->insert('newsletter_events', ['created_at' => Repo::now(), 'campaign_id' => 0, 'subscriber_id' => (int) $sub['id'], 'email' => (string) $sub['email'],
-            'type' => 'unsubscribe', 'diagnostic' => $how === 'oneclick' ? 'One-Click (E-Mail-Programm)' : 'Abmeldelink', 'source' => 'site']);
-        // der Ausgabe zuordnen, aus der zuletzt versendet wurde
-        $cid = (int) app()->db->fetchValue('SELECT campaign_id FROM newsletter_queue WHERE subscriber_id = ? AND status = \'sent\' ORDER BY sent_at DESC LIMIT 1', [(int) $sub['id']]);
+        $sid = (int) $sub['id'];
+        $names = [];
+        if ($lists !== null) {
+            $own = Repo::listIds($sid);
+            $lists = array_values(array_intersect(array_map('intval', $lists), $own));
+            if (!$lists) return;
+            foreach (Repo::lists() as $l) if (in_array((int) $l['id'], $lists, true)) $names[] = $l['name'];
+            $none = Repo::removeLists($sid, $lists);
+        } else {
+            $none = true;
+        }
+        if ($none) (new Repo())->updateSubscriber($sid, ['status' => 'unsubscribed']);
+        $label = ['oneclick' => 'One-Click (E-Mail-Programm)', 'admin' => 'Verwaltung'][$how] ?? 'Abmeldelink';
+        app()->db->insert('newsletter_events', ['created_at' => Repo::now(), 'campaign_id' => $campaign, 'subscriber_id' => $sid, 'email' => (string) $sub['email'],
+            'type' => 'unsubscribe', 'diagnostic' => mb_substr($label . ($names ? ': ' . implode(', ', $names) : ': alle Verteiler'), 0, 400), 'source' => 'site']);
+        $cid = $campaign ?: (int) app()->db->fetchValue('SELECT campaign_id FROM newsletter_queue WHERE subscriber_id = ? AND status = \'sent\' ORDER BY sent_at DESC LIMIT 1', [$sid]);
         if ($cid) (new Repo())->countCampaign($cid, 'unsubscribe');
     }
 }

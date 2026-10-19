@@ -127,9 +127,10 @@ final class Newsletter
         return $sub;
     }
 
-    public static function unsubscribeUrl(array $sub): string
+    /** Abmeldelink; $campaign = Ausgabe, aus der abgemeldet wird (Ein-Klick: nur deren Verteiler) */
+    public static function unsubscribeUrl(array $sub, int $campaign = 0): string
     {
-        return absolute_url(self::BASE . '/abmelden/' . self::token('unsub', $sub));
+        return absolute_url(self::BASE . '/abmelden/' . self::token('unsub', $sub)) . ($campaign > 0 ? '?a=' . $campaign : '');
     }
 
     public static function confirmUrl(array $sub): string
@@ -147,6 +148,21 @@ final class Newsletter
     {
         if (!preg_match('~^(\d{1,10})-([a-f0-9]{16})$~', $token, $m)) return 0;
         return hash_equals(substr(hash_hmac('sha256', 'nl-web|' . (int) $m[1], self::key()), 0, 16), $m[2]) ? (int) $m[1] : 0;
+    }
+
+    /** Angebot eines Blocks (Verteiler-IDs) signiert ins Formular – so lassen sich auch interne Verteiler gezielt anbieten */
+    public static function signOffer(array $ids): string
+    {
+        $ids = implode(',', array_values(array_filter(array_map('intval', $ids))));
+        return $ids . '.' . substr(hash_hmac('sha256', 'nl-offer|' . $ids, self::key()), 0, 16);
+    }
+
+    /** @return list<int> geprüfte Verteiler-IDs eines Angebots (leer bei falscher Signatur) */
+    public static function verifyOffer(string $offer): array
+    {
+        if (!preg_match('~^([0-9,]{1,190})\.([a-f0-9]{16})$~', $offer, $m)) return [];
+        if (!hash_equals(substr(hash_hmac('sha256', 'nl-offer|' . $m[1], self::key()), 0, 16), $m[2])) return [];
+        return array_values(array_filter(array_map('intval', explode(',', $m[1]))));
     }
 
     /** Domain für Message-ID und Rücklaufadresse */

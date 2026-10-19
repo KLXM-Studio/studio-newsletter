@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 – 2026-10-20
+
+- Mehrere Newsletter: Verteiler mit eigenem Auftritt (Fußzeile, Farbe, optional eigenes Absender-Konto) für Ausgaben und Bestätigungsmails; interne Verteiler.
+- Block „Newsletter-Anmeldung“: angebotene Verteiler wählbar (signiertes Angebot, auch interne Verteiler).
+- Abmeldung je Verteiler mit Häkchen und „Alle abbestellen“; Ein-Klick-Abmeldung nur vom Verteiler der Ausgabe; ohne Verteiler = abgemeldet.
+- Braucht Core mit `Mailer`-Option `via` für eigene Absender (sonst gilt der Zweck).
+
 ## 0.1.0 – 2026-10-20
 
 Erste Fassung.
