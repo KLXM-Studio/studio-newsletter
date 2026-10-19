@@ -41,6 +41,7 @@ final class Repo implements Store
                 ->column('account', 'string', ['length' => 64, 'default' => ''])
                 ->column('footer', 'text')
                 ->column('color', 'string', ['length' => 7, 'default' => ''])
+                ->column('design_id', 'int', ['default' => 0])
                 ->column('sort', 'int', ['default' => 0])
                 ->column('created_at', 'datetime'),
             'newsletter_subscribers' => fn(Table $t) => $t->id()
@@ -72,6 +73,8 @@ final class Repo implements Store
                 ->column('subject', 'string', ['length' => 191, 'null' => false])
                 ->column('preheader', 'string', ['length' => 191, 'default' => ''])
                 ->column('body', 'longtext')
+                ->column('blocks', 'longtext')
+                ->column('design_id', 'int', ['default' => 0])
                 ->column('image', 'int', ['default' => 0])
                 ->column('button_label', 'string', ['length' => 80, 'default' => ''])
                 ->column('button_link', 'string', ['length' => 500, 'default' => ''])
@@ -104,6 +107,8 @@ final class Repo implements Store
                 ->column('source', 'string', ['length' => 12, 'default' => ''])
                 ->column('provider_id', 'string', ['length' => 64, 'default' => ''])
                 ->index('subscriber_id')->index('campaign_id')->index('created_at'),
+            ...Design::table(),
+            ...Templates::table(),
             'newsletter_suppressions' => fn(Table $t) => $t->id()
                 ->column('email_hash', 'string', ['length' => 64, 'null' => false])
                 ->column('reason', 'string', ['length' => 12, 'null' => false])
@@ -142,7 +147,8 @@ final class Repo implements Store
         $acc = (string) ($v['account'] ?? '');
         $data = ['name' => mb_substr(trim((string) $v['name']), 0, 120), 'description' => mb_substr(trim((string) ($v['description'] ?? '')), 0, 191), 'public' => !empty($v['public']) ? 1 : 0,
             'account' => $acc !== '' && \Core\Mail\Accounts::find($acc) ? $acc : '', 'footer' => mb_substr(trim((string) ($v['footer'] ?? '')), 0, 600),
-            'color' => preg_match('~^#[0-9a-f]{6}$~i', $color) && !empty($v['own_color']) ? strtolower($color) : ''];
+            'color' => preg_match('~^#[0-9a-f]{6}$~i', $color) && !empty($v['own_color']) ? strtolower($color) : '',
+            'design_id' => array_key_exists('design_id', $v) ? max(0, (int) $v['design_id']) : (int) (self::list($id)['design_id'] ?? 0)];
         if ($id > 0) { self::db()->update('newsletter_lists', $data, 'id = :wid', ['wid' => $id]); return $id; }
         $data['sort'] = (int) self::db()->fetchValue('SELECT COALESCE(MAX(sort), 0) + 1 FROM newsletter_lists');
         return self::db()->insert('newsletter_lists', $data + ['created_at' => self::now()]);

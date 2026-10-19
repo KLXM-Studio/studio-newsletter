@@ -11,3 +11,32 @@
 .nl-listform .f{margin:0}
 .nl-label{display:block;font-weight:600;margin-bottom:.35rem}
 .nl-inline-check{display:inline-flex;gap:.35rem;align-items:center;margin-right:.75rem}
+/* Editor mit Vorschau */
+.nl-editor{display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr);align-items:start}
+@media (min-width:1280px){.nl-editor{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.nl-editor__preview{position:sticky;top:1rem}}
+.nl-editor__form{display:grid;gap:1rem;min-width:0}
+.nl-preview{display:grid;gap:.5rem}
+.nl-preview__bar{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.nl-preview__bar .is-on{outline:2px solid currentColor;outline-offset:-2px}
+.nl-preview__state{margin-left:auto;font-size:.8125rem}
+.nl-preview__stage{display:flex;justify-content:center;padding:12px;border-radius:10px;background:color-mix(in srgb,currentColor 6%,transparent);overflow:auto;max-height:calc(100vh - 7rem)}
+.nl-preview__frame{display:block;width:100%;min-height:480px;border:0;border-radius:6px;background:#fff;transition:width .2s ease}
+.nl-preview.is-mobile .nl-preview__frame{width:390px;max-width:100%}
+.nl-savetpl{display:inline-block}
+.nl-savetpl summary{list-style:none;cursor:pointer}
+.nl-savetpl summary::-webkit-details-marker{display:none}
+.nl-savetpl[open] .nl-inline{margin-top:.5rem}
+/* Galerie: Vorlagen, Designs */
+.nl-tpls{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr))}
+.nl-tpl{display:grid;gap:.4rem;align-content:start;color:inherit;text-decoration:none}
+.nl-tpl__pick{margin:0}
+.nl-tpl__btn{display:grid;gap:.35rem;width:100%;padding:0;border:0;background:none;color:inherit;text-align:left;font:inherit;cursor:pointer;text-decoration:none}
+.nl-tpl__thumb{position:relative;display:block;height:260px;overflow:hidden;border-radius:10px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);background:#f2f2f0}
+.nl-tpl__thumb iframe{position:absolute;inset:0 auto auto 0;width:640px;height:1000px;border:0;transform:scale(.36);transform-origin:0 0;pointer-events:none}
+.nl-tpl__btn:hover .nl-tpl__thumb,.nl-tpl__btn:focus-visible .nl-tpl__thumb{outline:3px solid currentColor;outline-offset:2px}
+.nl-tpl__empty{display:grid;place-items:center;height:100%;font-size:2rem;opacity:.5}
+.nl-tpl__name{font-weight:700}
+.nl-tpl__desc{font-size:.875rem;opacity:.8}
+.nl-tpl__del{justify-self:start}
+.nl-swatches{display:flex;gap:.3rem}
+.nl-swatch{display:inline-block;width:1.1rem;height:1.1rem;border-radius:50%;border:1px solid color-mix(in srgb,currentColor 25%,transparent)}

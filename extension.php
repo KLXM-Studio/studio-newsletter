@@ -26,7 +26,7 @@ use Klxm\Newsletter\SiteController;
 return [
     'name' => 'newsletter',
     'label' => 'Newsletter – Anmeldung, Versand, Rückläufer',
-    'version' => '0.2.0',
+    'version' => '0.3.0',
     'requires' => '>=1.0.0',
     'description' => 'Newsletter mit Double-Opt-in, Verteilern und gedrosseltem Versand – über den eigenen SMTP-Server (Rückläufer per IMAP) oder Mailjet (SMTP oder API, Rückläufer per Webhook). Hard und Soft Bounces, Beschwerden und Sperrliste.',
     'author' => 'KLXM Crossmedia GmbH and contributors',
@@ -76,7 +76,7 @@ return [
         $x->docs('manual', ['newsletter' => ['title' => 'Newsletter', 'after' => 'medien', 'file' => __DIR__ . '/docs/manual.php']]);
         $x->docs('technical', ['newsletter' => ['title' => 'Newsletter (Erweiterung): Versand und Rückläufer', 'part' => 3, 'after' => 'live', 'file' => __DIR__ . '/docs/technical.php']]);
         $x->health(fn(): array => Klxm\Newsletter\Health::checks());
-        $x->adminAssets(fn(string $view) => $view === 'newsletter' ? ['css/newsletter-admin.css'] : []);
+        $x->adminAssets(fn(string $view) => $view === 'newsletter' ? ['css/newsletter-admin.css', 'js/newsletter-admin.js'] : []);
         $x->adminPage(['href' => '/admin/newsletter', 'label' => 'Newsletter', 'kind' => 'content', 'icon' => 'paper-plane-tilt', 'perm' => Newsletter::PERM,
             'feature' => Newsletter::FEATURE, 'description' => 'Ausgaben schreiben und versenden, Empfänger und Rückläufer']);
         $x->dashboard(function (array $user): array {
@@ -100,8 +100,16 @@ return [
             $c = AdminController::class;
             $p = Newsletter::PERM;
             $r->get('/admin/newsletter', [$c, 'index'], $p);
-            $r->get('/admin/newsletter/neu', [$c, 'edit'], $p);
-            $r->post('/admin/newsletter/neu', [$c, 'save'], $p);
+            $r->get('/admin/newsletter/neu', [$c, 'create'], $p);
+            $r->post('/admin/newsletter/neu', [$c, 'createFrom'], $p);
+            $r->post('/admin/newsletter/live', [$c, 'live'], $p);
+            $r->get('/admin/newsletter/vorlage/{key}/vorschau', [$c, 'templatePreview'], $p);
+            $r->post('/admin/newsletter/vorlagen/{id}/loeschen', [$c, 'deleteTemplate'], $p);
+            $r->get('/admin/newsletter/designs', [$c, 'designs'], $p);
+            $r->post('/admin/newsletter/designs/live', [$c, 'designLive'], $p);
+            $r->get('/admin/newsletter/designs/{id}', [$c, 'design'], $p);
+            $r->post('/admin/newsletter/designs/{id}', [$c, 'saveDesign'], $p);
+            $r->get('/admin/newsletter/designs/{id}/vorschau', [$c, 'designPreview'], $p);
             $r->get('/admin/newsletter/empfaenger', [$c, 'subscribers'], $p);
             $r->post('/admin/newsletter/empfaenger/import', [$c, 'import'], $p);
             $r->get('/admin/newsletter/empfaenger/export.csv', [$c, 'export'], $p);

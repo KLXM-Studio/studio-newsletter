@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 – 2026-10-20
+
+- Visueller Editor: Ausgaben aus Mail-Bausteinen im Block-Editor der Verwaltung, Live-Vorschau mit Desktop/Handy/Dunkel.
+- Bausteine: Aufmacher, Überschrift, Text, Bild, Bild und Text, Spalten (2–3), Einträge aus Datentabelle (auch nur kommende Termine), Knopf, Zitat, Trenner.
+- Designs: sechs mitgelieferte (Klar, Warm, Natur, Verein, Kontrast, Minimal), Editor mit Live-Vorschau und Kontrastprüfung; je Verteiler und je Ausgabe wählbar.
+- Vorlagen: Klassisch, Magazin, Veranstaltungen, Kurzinfo, Einladung, Rückblick; eigene Ausgaben als Vorlage speichern.
+- Ältere Ausgaben (Bild, Inhalt, Knopf) werden als Bausteine übernommen.
+
 ## 0.2.0 – 2026-10-20
 
 - Mehrere Newsletter: Verteiler mit eigenem Auftritt (Fußzeile, Farbe, optional eigenes Absender-Konto) für Ausgaben und Bestätigungsmails; interne Verteiler.

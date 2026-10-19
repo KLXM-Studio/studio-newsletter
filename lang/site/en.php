@@ -47,4 +47,6 @@ return [
     'Erledigt. Andere Newsletter erhalten Sie weiterhin – über den Link in der nächsten Ausgabe können Sie auch diese abbestellen.' => 'Done. You will keep receiving your other newsletters – you can unsubscribe from them too via the link in the next issue.',
     'Nichts ausgewählt' => 'Nothing selected',
     'Welche Newsletter möchten Sie an {email} nicht mehr erhalten?' => 'Which newsletters should {email} no longer receive?',
+    // Designs, Vorlagen, Bausteine
+    'Alle ansehen' => 'View all',
 ];

@@ -138,6 +138,18 @@ final class SelfTest
         });
         self::eq('DNS: SPF, DMARC (quarantine), MX', [$dns['spf'], $dns['dmarc'], $dns['dmarc_policy'], $dns['mx']], [true, true, 'quarantine', true]);
 
+        echo "Designs und Vorlagen\n";
+        foreach (Design::PRESETS as $k => $p) self::eq("Design „{$p['name']}“: Kontraste WCAG AA", Design::contrastIssues(Design::settings(['settings' => json_encode($p + Design::DEFAULTS)])), []);
+        foreach (Templates::builtin() as $k => $t) {
+            [$clean, $err] = Blocks::sanitize(array_map(fn($b) => ['type' => $b['type'], 'data' => $b['data']], $t['blocks']));
+            $html = Blocks::render($clean, Design::settings(['settings' => '{}']), ['name' => 'Erika', 'site' => 'Muster'], true);
+            self::eq("Vorlage „{$t['name']}“: Bausteine gültig und dargestellt", [$err, count($clean) === count($t['blocks']), str_contains($html, '<tr>')], [[], true, true]);
+        }
+        $legacy = Blocks::of(['blocks' => '', 'image' => 0, 'body' => '<p>Alt</p>', 'button_label' => 'Los', 'button_link' => 'https://example.org']);
+        self::eq('ältere Ausgabe (Inhalt + Knopf) als Bausteine', array_column($legacy, 'type'), ['text', 'button']);
+        [$b2] = Blocks::sanitize([['type' => 'boese', 'data' => []], ['type' => 'heading', 'data' => ['text' => '<script>x</script>Hallo', 'size' => 'l']]]);
+        self::eq('unbekannte Bausteine verworfen, Text escaped', [count($b2), str_contains(Blocks::render($b2, Design::settings(['settings' => '{}']), [], false), '<script>')], [1, false]);
+
         echo "Ablauf in der Datenbank (Website „" . site()->key . "“)\n";
         self::database();
 

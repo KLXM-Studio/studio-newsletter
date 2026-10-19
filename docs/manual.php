@@ -19,10 +19,17 @@
     <li><b>Mailjet über SMTP:</b> Konto mit Server in-v3.mailjet.com, Port 587, TLS; Benutzer = API-Schlüssel, Passwort = Secret Key. API-Schlüssel und Secret zusätzlich unter Newsletter → Einstellungen eintragen und <b>„Webhooks bei Mailjet einrichten“</b> klicken.</li>
     <li><b>Mailjet über die API:</b> wie oben, nur ohne SMTP – schneller bei großen Listen. Absender und Antwortadresse kommen weiter vom Konto.</li>
   </ul>
+  <h3>Ausgaben gestalten: Vorlagen, Bausteine, Designs</h3>
+  <ul>
+    <li><b>Neue Ausgabe</b> beginnt mit einer <b>Vorlage</b>: Klassisch, Magazin, Veranstaltungen, Kurzinfo, Einladung, Rückblick – oder leer. Jede bringt Bausteine mit Beispieltexten und ein passendes Design mit. Eigene Ausgaben lassen sich mit <b>„Als Vorlage speichern“</b> wiederverwenden.</li>
+    <li>Der Inhalt besteht aus <b>Bausteinen</b> wie im Block-Editor: Aufmacher, Überschrift, Text, Bild, Bild und Text, Spalten, Einträge aus Datentabelle (z. B. die nächsten Termine – automatisch aktuell), Knopf, Zitat, Trenner. Hinzufügen, mit ↑ ↓ ordnen, aufklappen zum Bearbeiten.</li>
+    <li>Rechts zeigt die <b>Live-Vorschau</b> die fertige Mail – umschaltbar auf Handy und Dunkelmodus. Leere Bilder erscheinen dort als Platzhalter, in der Mail fehlen sie einfach.</li>
+    <li><b>Designs</b> (Newsletter → Designs) legen Kopf mit Logo, Schrift, Farben, Ecken und Knopfform fest. Sechs Designs sind dabei (Klar, Warm, Natur, Verein, Kontrast, Minimal); anpassen oder als Kopie weiterentwickeln. Zu wenig Kontrast meldet der Editor. Jeder Verteiler wählt sein Design, eine Ausgabe kann ein anderes nehmen.</li>
+  </ul>
   <h3>Eine Ausgabe versenden</h3>
   <ol>
-    <li><b>Newsletter → Neue Ausgabe:</b> Betreff, Vorschautext (erscheint im Postfach), optional ein Bild, den Inhalt und einen Knopf mit Ziel. Platzhalter <code>{name}</code> setzt den Namen ein.</li>
-    <li><b>Vorschau</b> ansehen und <b>Test senden</b> – an sich selbst oder bis zu fünf Adressen.</li>
+    <li>Ausgabe gestalten (siehe oben), Betreff und Vorschautext (erscheint im Postfach) eintragen, Verteiler wählen. Platzhalter <code>{name}</code> setzt den Namen ein.</li>
+    <li><b>Test senden</b> – an sich selbst oder bis zu fünf Adressen.</li>
     <li><b>Versenden</b> – sofort oder zu einem Zeitpunkt. Die Ausgabe geht in Stapeln hinaus (Einstellung „Mails je Minute“); große Anbieter wie Gmail, GMX/Web.de und T-Online bekommen je Minute nur eine begrenzte Zahl. Anhalten und Fortsetzen ist jederzeit möglich.</li>
     <li>Der <b>Bericht</b> der Ausgabe zeigt Versendete, Rückläufer, Beschwerden und Abmeldungen mit allen Meldungen der Mailserver.</li>
   </ol>

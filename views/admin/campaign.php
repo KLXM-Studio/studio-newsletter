@@ -1,21 +1,34 @@
 <?php
 /**
- * Ausgabe schreiben / Bericht. @var ?array $campaign @var array $values @var array $errors @var bool $editable @var int $audience @var list<array> $events
+ * Ausgabe: Editor (Angaben + Bausteine) mit Live-Vorschau, danach Testen/Versenden – bzw. Bericht für versendete Ausgaben.
+ * @var array $campaign @var array $values @var list<array> $blocks @var array $errors @var bool $editable @var int $audience @var list<array> $events
  */
 use Core\Fields;
 use Klxm\Newsletter\AdminController;
+use Klxm\Newsletter\Blocks;
 use Klxm\Newsletter\Campaigns;
 use Klxm\Newsletter\Newsletter;
 
 $c = $campaign;
-$id = (int) ($c['id'] ?? 0);
-$base = '/admin/newsletter/' . ($id ?: 'neu');
-$status = (string) ($c['status'] ?? 'draft');
+$id = (int) $c['id'];
+$base = '/admin/newsletter/' . $id;
+$status = (string) $c['status'];
 $label = ['draft' => __('Entwurf'), 'scheduled' => __('Geplant'), 'sending' => __('Wird versendet'), 'paused' => __('Angehalten'), 'sent' => __('Versendet'), 'cancelled' => __('Abgebrochen')];
 $typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' => __('Blockiert (Absender)'), 'complaint' => __('Beschwerde'), 'unsubscribe' => __('Abmeldung'),
     'auto' => __('Abwesenheit'), 'delayed' => __('Verzögert'), 'unknown' => __('Unklar')];
+$previewBar = function (string $src = '') use ($base): void { ?>
+  <div class="nl-preview">
+    <div class="nl-preview__bar" role="group" aria-label="<?= e(__('Vorschau')) ?>">
+      <button type="button" class="adm-btn adm-btn--ghost is-on" data-nl-device="desktop" aria-pressed="true"><?= icon('desktop') ?> <?= e(__('Desktop')) ?></button>
+      <button type="button" class="adm-btn adm-btn--ghost" data-nl-device="mobile" aria-pressed="false"><?= icon('device-mobile') ?> <?= e(__('Handy')) ?></button>
+      <button type="button" class="adm-btn adm-btn--ghost" data-nl-dark aria-pressed="false"><?= icon('moon') ?> <?= e(__('Dunkel')) ?></button>
+      <span class="nl-preview__state adm-muted" data-nl-state aria-live="polite"></span>
+    </div>
+    <div class="nl-preview__stage"><iframe class="nl-preview__frame" data-nl-frame title="<?= e(__('Vorschau der E-Mail')) ?>"<?= $src !== '' ? ' src="' . e(url($src)) . '"' : '' ?>></iframe></div>
+  </div>
+<?php };
 ?>
-<?php if ($c && $status !== 'draft'): $q = Campaigns::rates($c); ?>
+<?php if ($status !== 'draft'): $q = Campaigns::rates($c); ?>
 <section class="adm-card">
   <h2><?= e(__('Versand')) ?> <span class="adm-badge"><?= e($label[$status] ?? $status) ?></span></h2>
   <dl class="adm-dl">
@@ -47,16 +60,22 @@ $typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' 
 <?php endif; ?>
 
 <?php if ($editable): ?>
-<form method="post" action="<?= e(url($base)) ?>" novalidate>
+<form method="post" action="<?= e(url($base)) ?>" class="nl-editor" data-nl-live="<?= e(url('/admin/newsletter/live')) ?>" novalidate>
   <?= csrf_field() ?>
-  <section class="adm-card"><div class="adm-fields"><?= Fields::renderForm(AdminController::campaignFields(), $values, $errors, 'f') ?></div>
-    <p class="adm-muted"><?= e(__('Aktuell {n} aktive Empfänger in den gewählten Verteilern (ohne gesperrte Adressen).', ['n' => fmt()->number($audience)])) ?></p></section>
-  <div class="adm-savebar">
-    <button class="adm-btn adm-btn--primary"><?= e(__('Speichern')) ?></button>
-    <?php if ($id): ?><a class="adm-btn adm-btn--ghost" href="<?= e(url($base . '/vorschau')) ?>" target="_blank" rel="noopener"><?= icon('eye') ?> <?= e(__('Vorschau')) ?></a><?php endif; ?>
+  <input type="hidden" name="id" value="<?= $id ?>">
+  <div class="nl-editor__form">
+    <section class="adm-card"><div class="adm-fields"><?= Fields::renderForm(AdminController::campaignFields(), $values, $errors, 'f') ?></div>
+      <p class="adm-muted"><?= e(__('Aktuell {n} aktive Empfänger in den gewählten Verteilern (ohne gesperrte Adressen).', ['n' => fmt()->number($audience)])) ?></p></section>
+    <section class="adm-card"><?= Blocks::renderInput('blocks', $blocks, $errors) ?><?php if (isset($errors['blocks'])): ?><p class="f-error"><?= e($errors['blocks']) ?></p><?php endif; ?></section>
+    <div class="adm-savebar">
+      <button class="adm-btn adm-btn--primary"><?= e(__('Speichern')) ?></button>
+      <details class="nl-savetpl"><summary class="adm-btn adm-btn--ghost"><?= icon('copy') ?> <?= e(__('Als Vorlage speichern')) ?></summary>
+        <div class="nl-inline"><label for="nl-tpl-name" class="adm-sr"><?= e(__('Name der Vorlage')) ?></label><input id="nl-tpl-name" name="template_name" type="text" maxlength="80" placeholder="<?= e(__('Name der Vorlage')) ?>">
+          <button class="adm-btn" name="_next" value="template"><?= e(__('Speichern')) ?></button></div></details>
+    </div>
   </div>
+  <div class="nl-editor__preview"><?php $previewBar(); ?></div>
 </form>
-<?php if ($id): ?>
 <section class="adm-card">
   <h2><?= e(__('Testen und versenden')) ?></h2>
   <form method="post" action="<?= e(url($base . '/test')) ?>" class="nl-inline"><?= csrf_field() ?>
@@ -64,7 +83,7 @@ $typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' 
     <input id="nl-test" name="test_to" type="text" placeholder="<?= e((string) (app()->auth->user()['email'] ?? '')) ?>">
     <button class="adm-btn"><?= icon('paper-plane-tilt') ?> <?= e(__('Test senden')) ?></button>
   </form>
-  <p class="adm-muted"><?= e(__('Bis zu 5 Adressen, durch Komma getrennt. Leer = an Sie selbst.')) ?></p>
+  <p class="adm-muted"><?= e(__('Bis zu 5 Adressen, durch Komma getrennt. Leer = an Sie selbst. Es gilt der gespeicherte Stand.')) ?></p>
   <form method="post" action="<?= e(url($base . '/senden')) ?>" class="nl-inline" data-confirm="<?= e(__('Ausgabe an {n} Empfänger versenden?', ['n' => fmt()->number($audience)])) ?>"><?= csrf_field() ?>
     <label for="nl-at"><?= e(__('Zeitpunkt (leer = jetzt)')) ?></label>
     <input id="nl-at" name="at" type="datetime-local" min="<?= e(date('Y-m-d\TH:i')) ?>" value="<?= e($status === 'scheduled' && $c['scheduled_at'] ? date('Y-m-d\TH:i', (int) strtotime($c['scheduled_at'])) : '') ?>">
@@ -72,12 +91,8 @@ $typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' 
   </form>
   <form method="post" action="<?= e(url($base . '/loeschen')) ?>" data-confirm="<?= e(__('Ausgabe löschen?')) ?>"><?= csrf_field() ?><button class="adm-btn adm-btn--ghost adm-btn--danger"><?= icon('trash') ?> <?= e(__('Löschen')) ?></button></form>
 </section>
-<?php endif; ?>
-<?php elseif ($c): ?>
-<section class="adm-card">
-  <h2><?= e($c['subject']) ?></h2>
-  <iframe class="nl-preview" title="<?= e(__('Vorschau')) ?>" src="<?= e(url($base . '/vorschau')) ?>" loading="lazy" ></iframe>
-</section>
+<?php else: ?>
+<section class="adm-card"><h2><?= e($c['subject']) ?></h2><?php $previewBar($base . '/vorschau'); ?></section>
 <?php endif; ?>
 
 <?php if ($events): ?>

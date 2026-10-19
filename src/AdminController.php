@@ -52,54 +52,116 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         return $this->show('campaigns', ['campaigns' => Repo::campaigns(), 'title' => __('Newsletter')]);
     }
 
+    /** Angaben einer Ausgabe neben den Bausteinen */
     public static function campaignFields(): array
     {
         $lists = [];
         foreach (Repo::lists() as $l) $lists[(string) $l['id']] = $l['name'] . ' (' . (int) $l['active'] . ')';
+        // Schlüssel „d{id}“: rein numerische Schlüssel ab 0 hielte Core\Fields für eine Liste ohne Schlüssel
+        $designs = ['d0' => __('wie beim Verteiler')];
+        foreach (Design::all() as $d) $designs['d' . (int) $d['id']] = $d['name'];
         return [
             ['name' => 'subject', 'label' => __('Betreff'), 'type' => 'text', 'required' => true, 'max' => 150,
                 'help' => __('Kurz und konkret (unter 60 Zeichen wird er überall ganz angezeigt). Platzhalter: {name}.')],
             ['name' => 'preheader', 'label' => __('Vorschautext'), 'type' => 'text', 'max' => 150, 'help' => __('Erscheint im Postfach neben dem Betreff.')],
-            ['name' => 'image', 'label' => __('Bild oben (optional)'), 'type' => 'media'],
-            ['name' => 'body', 'label' => __('Inhalt'), 'type' => 'richtext', 'required' => true,
-                'help' => __('Platzhalter: {name} (Name des Empfängers, kann leer sein). Abmeldelink und Absenderangaben fügt die Vorlage selbst an.')],
-            ['name' => 'button_label', 'label' => __('Knopf: Beschriftung'), 'type' => 'text', 'max' => 60, 'width' => 'half'],
-            ['name' => 'button_link', 'label' => __('Knopf: Ziel'), 'type' => 'link', 'width' => 'half'],
             ['name' => 'lists', 'label' => __('Verteiler'), 'type' => 'multiselect', 'options' => $lists, 'required' => true,
                 'help' => __('In Klammern: aktive Empfänger. Wer in mehreren Verteilern steht, erhält die Ausgabe nur einmal.')],
+            ['name' => 'design_id', 'label' => __('Design'), 'type' => 'select', 'options' => $designs, 'required' => true, 'width' => 'half'],
         ];
     }
 
-    public function edit(Request $r, string $id = '0', array $values = [], array $errors = [], int $status = 200): Response
+    /** Neue Ausgabe: Vorlage wählen */
+    public function create(Request $r): Response
     {
         $this->guard($r);
-        $c = (int) $id > 0 ? Repo::campaign((int) $id) : null;
-        if ((int) $id > 0 && !$c) throw new HttpException(404);
         if (!Repo::lists()) Repo::defaultList();
-        if (!$values) $values = $c ? ['subject' => $c['subject'], 'preheader' => $c['preheader'], 'image' => (int) $c['image'] ?: null, 'body' => $c['body'],
-            'button_label' => $c['button_label'], 'button_link' => $c['button_link'], 'lists' => array_map('strval', Repo::campaignLists($c))]
-            : ['lists' => [(string) Repo::defaultList()]];
-        $editable = !$c || in_array($c['status'], ['draft', 'scheduled'], true);
-        return $this->show('campaign', ['campaign' => $c, 'values' => $values, 'errors' => $errors, 'editable' => $editable,
-            'audience' => Campaigns::audience((array) ($values['lists'] ?? [])), 'events' => $c ? Repo::events(['campaign' => (int) $c['id']], 100) : [],
-            'tab' => 'campaign', 'title' => $c ? $c['subject'] : __('Neue Ausgabe')], $status);
+        return $this->show('gallery', ['builtin' => Templates::builtin(), 'saved' => Templates::saved(), 'tab' => 'campaign', 'title' => __('Neue Ausgabe')]);
     }
 
-    public function save(Request $r, string $id = '0'): Response
+    public function createFrom(Request $r): Response
     {
         $this->guard($r);
-        $c = (int) $id > 0 ? Repo::campaign((int) $id) : null;
-        if ($c && !in_array($c['status'], ['draft', 'scheduled'], true)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Versendete Ausgaben lassen sich nicht mehr ändern – „Kopie anlegen“ nutzen.'));
+        $key = (string) ($r->post['vorlage'] ?? '');
+        $t = $key === 'leer' ? ['subject' => '', 'blocks' => [['type' => 'text', 'data' => []]], 'design_id' => 0] : Templates::find($key);
+        if (!$t) return $this->to('/admin/newsletter/neu', 'error', __('Vorlage nicht gefunden.'));
+        $id = Repo::saveCampaign(0, ['subject' => (string) ($t['subject'] ?: __('Neue Ausgabe')), 'blocks' => json_encode($t['blocks'], JSON_UNESCAPED_UNICODE),
+            'design_id' => (int) $t['design_id'], 'lists' => (string) Repo::defaultList()]);
+        return Response::redirect(url('/admin/newsletter/' . $id));
+    }
+
+    public function edit(Request $r, string $id, array $values = [], array $blocks = [], array $errors = [], int $status = 200): Response
+    {
+        $this->guard($r);
+        $c = ctype_digit($id) ? Repo::campaign((int) $id) : null;
+        if (!$c) throw new HttpException(404);
+        if (!$values) $values = ['subject' => $c['subject'], 'preheader' => $c['preheader'], 'lists' => array_map('strval', Repo::campaignLists($c)), 'design_id' => 'd' . (int) $c['design_id']];
+        $editable = in_array($c['status'], ['draft', 'scheduled'], true);
+        return $this->show('campaign', ['campaign' => $c, 'values' => $values, 'blocks' => $blocks ?: Blocks::of($c), 'errors' => $errors, 'editable' => $editable,
+            'audience' => Campaigns::audience((array) ($values['lists'] ?? [])), 'events' => Repo::events(['campaign' => (int) $c['id']], 100),
+            'tab' => 'campaign', 'title' => $c['subject']], $status);
+    }
+
+    /** Eingabe des Editors → [Angaben, Bausteine, Fehler] */
+    private static function input(Request $r): array
+    {
         [$v, $errors] = Fields::sanitize(self::campaignFields(), (array) ($r->post['f'] ?? []));
-        if (($v['button_label'] ?? '') !== '' && Message::href((string) ($v['button_link'] ?? '')) === '') $errors['button_link'] = __('Bitte ein Ziel für den Knopf wählen.');
-        if ($errors) return $this->edit($r, $id, $v, $errors, 422);
-        $data = ['subject' => (string) $v['subject'], 'preheader' => (string) ($v['preheader'] ?? ''), 'body' => (string) $v['body'], 'image' => (int) ($v['image'] ?? 0),
-            'button_label' => (string) ($v['button_label'] ?? ''), 'button_link' => (string) ($v['button_link'] ?? ''),
-            'lists' => implode(',', array_map('intval', (array) ($v['lists'] ?? [])))];
-        $nid = Repo::saveCampaign((int) $id, $data);
+        [$blocks, $berr] = Blocks::sanitize($r->post['blocks'] ?? []);
+        return [$v, $blocks, $errors + $berr];
+    }
+
+    public function save(Request $r, string $id): Response
+    {
+        $this->guard($r);
+        $c = ctype_digit($id) ? Repo::campaign((int) $id) : null;
+        if (!$c) throw new HttpException(404);
+        if (!in_array($c['status'], ['draft', 'scheduled'], true)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Versendete Ausgaben lassen sich nicht mehr ändern – „Kopie anlegen“ nutzen.'));
+        [$v, $blocks, $errors] = self::input($r);
+        if (!$blocks) $errors['blocks'] = __('Bitte mindestens einen Baustein hinzufügen.');
+        if ($errors) return $this->edit($r, $id, $v, $blocks, $errors, 422);
+        Repo::saveCampaign((int) $id, ['subject' => (string) $v['subject'], 'preheader' => (string) ($v['preheader'] ?? ''), 'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE),
+            'design_id' => (int) ltrim((string) ($v['design_id'] ?? ''), 'd'), 'lists' => implode(',', array_map('intval', (array) ($v['lists'] ?? [])))]);
         $next = (string) ($r->post['_next'] ?? '');
-        if ($next === 'test') return $this->test($r, (string) $nid);
-        return $this->to('/admin/newsletter/' . $nid, 'success', __('Ausgabe gespeichert.'));
+        if ($next === 'test') return $this->test($r, $id);
+        if ($next === 'template') {
+            Templates::saveFrom((array) Repo::campaign((int) $id), (string) ($r->post['template_name'] ?? '') ?: (string) $v['subject']);
+            return $this->to('/admin/newsletter/' . (int) $id, 'success', __('Als Vorlage gespeichert – sie steht bei „Neue Ausgabe“ zur Wahl.'));
+        }
+        return $this->to('/admin/newsletter/' . (int) $id, 'success', __('Ausgabe gespeichert.'));
+    }
+
+    /** Live-Vorschau des Editors (ungespeicherter Stand) */
+    public function live(Request $r): Response
+    {
+        $this->guard($r);
+        [$v, $blocks] = self::input($r);
+        $c = ['id' => (int) ($r->post['id'] ?? 0), 'subject' => (string) ($v['subject'] ?? ''), 'preheader' => (string) ($v['preheader'] ?? ''), 'blocks' => $blocks,
+            'design_id' => (int) ltrim((string) ($v['design_id'] ?? ''), 'd'), 'lists' => implode(',', array_map('intval', (array) ($v['lists'] ?? [])))];
+        return $this->mail(Message::html($c, Message::vars(['name' => 'Erika Musterfrau', 'email' => 'erika@example.org']) + ['unsubscribe' => '#', 'webversion' => '#'],
+            Repo::primaryList(Repo::campaignLists($c)), ['preview' => true, 'unsubscribe' => '#', 'webversion' => '#', 'dark' => !empty($r->post['_dark'])]));
+    }
+
+    /** Vorschau einer Vorlage (Galerie) */
+    public function templatePreview(Request $r, string $key): Response
+    {
+        $this->guard($r);
+        $t = Templates::find($key) ?? throw new HttpException(404);
+        $c = ['id' => 0, 'subject' => (string) $t['subject'], 'preheader' => '', 'blocks' => $t['blocks'], 'design_id' => (int) $t['design_id'], 'lists' => ''];
+        return $this->mail(Message::html($c, Message::vars(['name' => 'Erika Musterfrau']) + ['unsubscribe' => '#'], null, ['preview' => true, 'unsubscribe' => '#']));
+    }
+
+    public function deleteTemplate(Request $r, string $id): Response
+    {
+        $this->guard($r);
+        Templates::delete((int) $id);
+        return $this->to('/admin/newsletter/neu', 'success', __('Vorlage gelöscht.'));
+    }
+
+    /** Mail-HTML für Vorschau-Rahmen: eigene CSP, nur gleiche Herkunft darf einbetten */
+    private function mail(string $html): Response
+    {
+        return (new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']))
+            ->header('Content-Security-Policy', "default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'")
+            ->header('X-Frame-Options', 'SAMEORIGIN')->header('Cache-Control', 'no-store');
     }
 
     public function test(Request $r, string $id): Response
@@ -120,6 +182,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     {
         $this->guard($r);
         $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        if (!Blocks::of($c)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Die Ausgabe hat noch keinen Inhalt.'));
         if (!Campaigns::audience(Repo::campaignLists($c))) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Die gewählten Verteiler haben keine aktiven Empfänger.'));
         if ($c['status'] === 'draft' && !\Core\Mail\Accounts::ready(\Core\Mail\Accounts::route(Newsletter::PURPOSE)) && !(Newsletter::mode() === 'mailjet_api' && Newsletter::mailjet()->configured())) {
             return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Kein versandbereites E-Mail-Konto für den Zweck „Newsletter“ (Grundeinstellungen → E-Mail-Versand).'));
@@ -149,7 +212,8 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     {
         $this->guard($r);
         $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
-        $nid = Repo::saveCampaign(0, array_intersect_key($c, array_flip(['preheader', 'body', 'image', 'button_label', 'button_link', 'lists'])) + ['subject' => $c['subject']]);
+        $nid = Repo::saveCampaign(0, ['subject' => $c['subject'], 'preheader' => $c['preheader'], 'blocks' => json_encode(Blocks::of($c), JSON_UNESCAPED_UNICODE),
+            'design_id' => (int) $c['design_id'], 'lists' => $c['lists']]);
         return $this->to('/admin/newsletter/' . $nid, 'success', __('Kopie angelegt.'));
     }
 
@@ -166,8 +230,72 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     {
         $this->guard($r);
         $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
-        $m = Message::campaign($c, ['id' => 0, 'email' => 'erika@example.org', 'name' => 'Erika Musterfrau'], false);
-        return (new Response($m['html'], 200, ['Content-Type' => 'text/html; charset=utf-8']))->header('X-Frame-Options', 'SAMEORIGIN');
+        return $this->mail(Message::html($c, Message::vars(['name' => 'Erika Musterfrau', 'email' => 'erika@example.org']) + ['unsubscribe' => '#', 'webversion' => '#'],
+            Repo::primaryList(Repo::campaignLists($c)), ['preview' => in_array($c['status'], ['draft', 'scheduled'], true), 'unsubscribe' => '#', 'webversion' => '#']));
+    }
+
+    // ------------------------------------------------------------------ Designs
+
+    public function designs(Request $r): Response
+    {
+        $this->guard($r);
+        return $this->show('designs', ['designs' => Design::all(), 'tab' => 'designs', 'title' => __('Designs')]);
+    }
+
+    public function design(Request $r, string $id, array $values = [], string $name = '', int $status = 200): Response
+    {
+        $this->guard($r);
+        $d = Design::find((int) $id) ?? throw new HttpException(404);
+        return $this->show('design', ['design' => $d, 'name' => $name ?: $d['name'], 'values' => $values ?: $d['s'] + ['radius' => (string) $d['s']['radius']],
+            'issues' => Design::contrastIssues($values ? Design::settings(['settings' => json_encode($values)]) : $d['s']), 'tab' => 'designs', 'title' => $d['name']], $status);
+    }
+
+    private static function designInput(Request $r): array
+    {
+        [$v] = Fields::sanitize(Design::fields(), (array) ($r->post['f'] ?? []));
+        $v['logo'] = (int) ($v['logo'] ?? 0);
+        $v['radius'] = (int) ($v['radius'] ?? 8);
+        return Design::settings(['settings' => json_encode($v)]);
+    }
+
+    public function saveDesign(Request $r, string $id): Response
+    {
+        $this->guard($r);
+        $d = Design::find((int) $id) ?? throw new HttpException(404);
+        $s = self::designInput($r);
+        $act = (string) ($r->post['_action'] ?? 'save');
+        if ($act === 'delete') {
+            if (count(Design::all()) < 2) return $this->to('/admin/newsletter/designs', 'error', __('Das letzte Design kann nicht gelöscht werden.'));
+            Design::delete((int) $id);
+            return $this->to('/admin/newsletter/designs', 'success', __('Design gelöscht. Verteiler und Ausgaben damit nutzen jetzt das erste Design.'));
+        }
+        if ($act === 'copy') {
+            $nid = Design::save(0, __('{name} (Kopie)', ['name' => $d['name']]), $d['s']);
+            return $this->to('/admin/newsletter/designs/' . $nid, 'success', __('Kopie angelegt.'));
+        }
+        Design::save((int) $id, (string) ($r->post['name'] ?? $d['name']), $s);
+        $issues = Design::contrastIssues($s);
+        return $this->to('/admin/newsletter/designs/' . (int) $id, $issues ? 'warning' : 'success', __('Design gespeichert.') . ($issues ? ' ' . __('Bitte Kontraste prüfen.') : ''));
+    }
+
+    /** Live-Vorschau des Design-Editors mit der Vorlage „Klassisch“ */
+    public function designLive(Request $r): Response
+    {
+        $this->guard($r);
+        $s = self::designInput($r);
+        $t = Templates::builtin()['klassisch'];
+        $c = ['id' => 0, 'subject' => (string) $t['subject'], 'preheader' => '', 'blocks' => $t['blocks'], 'design_id' => 0, 'lists' => ''];
+        return $this->mail(Message::html($c, Message::vars(['name' => 'Erika Musterfrau']) + ['unsubscribe' => '#'], null,
+            ['preview' => true, 'unsubscribe' => '#', 'dark' => !empty($r->post['_dark']), 'design' => $s]));
+    }
+
+    public function designPreview(Request $r, string $id): Response
+    {
+        $this->guard($r);
+        $d = Design::find((int) $id) ?? throw new HttpException(404);
+        $t = Templates::builtin()['klassisch'];
+        $c = ['id' => 0, 'subject' => (string) $t['subject'], 'preheader' => '', 'blocks' => $t['blocks'], 'design_id' => (int) $d['id'], 'lists' => ''];
+        return $this->mail(Message::html($c, Message::vars(['name' => 'Erika Musterfrau']) + ['unsubscribe' => '#'], null, ['preview' => true, 'unsubscribe' => '#']));
     }
 
     // ------------------------------------------------------------------ Empfänger
@@ -297,7 +425,6 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
                 'help' => __('Höchstens so viele je Lauf; große Anbieter (Gmail, GMX/Web.de, T-Online, Outlook) werden zusätzlich einzeln gedrosselt.')],
             ['name' => 'footer', 'label' => __('Absenderangaben im Fuß jeder Ausgabe'), 'type' => 'textarea', 'rows' => 3, 'max' => 600,
                 'help' => __('Pflichtangaben wie im Impressum: Name, Anschrift, Kontakt. Der Abmeldelink kommt automatisch dazu.')],
-            ['name' => 'color', 'label' => __('Farbe für Linie, Links und Knopf'), 'type' => 'color', 'width' => 'half'],
             ['type' => 'heading', 'label' => __('Anmeldung')],
             ['name' => 'consent_text', 'label' => __('Text der Einwilligung'), 'type' => 'textarea', 'rows' => 3, 'max' => 600,
                 'help' => __('Steht am Ankreuzfeld des Formulars und wird als Nachweis je Empfänger gespeichert. Leer = Standardtext.')],
@@ -346,7 +473,6 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             if ($out[$k] === null || $out[$k] === '') $out[$k] = $d;
         }
         if ($out['imap_verify'] === null) $out['imap_verify'] = true;
-        if ((string) ($out['color'] ?? '') === '') $out['color'] = Message::color();
         foreach (['consent_text', 'doi_subject', 'doi_text'] as $k) if ((string) ($out[$k] ?? '') === '') $out[$k] = Newsletter::text($k);
         return $out;
     }

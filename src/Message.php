@@ -9,9 +9,9 @@ use Klxm\Newsletter\Engine\Ref;
 use Klxm\Newsletter\Engine\Template;
 
 /**
- * Baut eine versandfertige Nachricht (Ausgabe, Bestätigung, Test): Betreff, HTML (Vorlage views/mail/layout.php,
- * Tabellen-Layout mit Inline-Stilen), Textfassung, Kopfzeilen (List-Unsubscribe + One-Click nach RFC 8058, Bezug),
- * Rücklaufadresse (VERP) und Message-ID. Ergebnis ist ein neutrales Array – Sender entscheidet über den Versandweg.
+ * Baut eine versandfertige Nachricht (Ausgabe, Bestätigung, Test, Vorschau): Betreff, HTML aus Design + Bausteinen
+ * (views/mail/layout.php, views/mail/blocks), Textfassung, Kopfzeilen (List-Unsubscribe + One-Click nach RFC 8058, Bezug),
+ * Rücklaufadresse (VERP), Message-ID und Absender-Konto des Verteilers (via). Ergebnis ist ein neutrales Array.
  */
 final class Message
 {
@@ -20,32 +20,43 @@ final class Message
     {
         $list = Repo::primaryList(Repo::campaignLists($c));
         $unsub = (int) ($sub['id'] ?? 0) > 0 ? Newsletter::unsubscribeUrl($sub, (int) $c['id']) : absolute_url(Newsletter::BASE . '/abmelden');
-        $vars = ['name' => (string) ($sub['name'] ?? ''), 'email' => (string) ($sub['email'] ?? ''), 'unsubscribe' => $unsub, 'webversion' => Newsletter::webUrl($c),
-            'site' => self::siteName()];
+        $vars = self::vars($sub) + ['unsubscribe' => $unsub, 'webversion' => (int) ($c['id'] ?? 0) ? Newsletter::webUrl($c) : ''];
         $subject = Template::fill((string) $c['subject'], $vars);
-        $html = self::layout([
-            'subject' => $subject, 'preheader' => Template::fill((string) $c['preheader'], $vars),
-            'body' => self::absoluteLinks(Template::fill(rich((string) $c['body']), $vars, true)),
-            'image' => self::imageUrl((int) $c['image']), 'button_label' => (string) $c['button_label'], 'button_href' => self::href((string) $c['button_link']),
-            'unsubscribe' => $unsub, 'webversion' => $vars['webversion'], 'test' => $test,
-        ], $list);
+        $html = self::html($c, $vars, $list, ['subject' => $subject, 'unsubscribe' => $unsub, 'webversion' => $vars['webversion'], 'test' => $test]);
         return self::envelope($subject, $html, (int) $c['id'], $sub, $unsub) + ['via' => (string) ($list['account'] ?? '')];
     }
 
-    /** Bestätigungsmail (Double-Opt-in) – reiner Text plus schlichtes HTML */
+    /**
+     * HTML einer Ausgabe – auch für Vorschau (Bild-Platzhalter, Beispielname) und Webversion.
+     * $o: subject, unsubscribe, webversion, test, preview, dark, design (Einstellungen statt gespeichertem Design – Design-Editor)
+     */
+    public static function html(array $c, array $vars, ?array $list = null, array $o = []): string
+    {
+        $s = self::applyList(is_array($o['design'] ?? null) ? $o['design'] : Design::forCampaign($c)['s'], $list);
+        $content = Blocks::render(Blocks::of($c), $s, $vars, !empty($o['preview']));
+        return self::layout([
+            'subject' => (string) ($o['subject'] ?? Template::fill((string) $c['subject'], $vars)),
+            'preheader' => Template::fill((string) ($c['preheader'] ?? ''), $vars),
+            'content' => $content, 'unsubscribe' => (string) ($o['unsubscribe'] ?? ''), 'webversion' => (string) ($o['webversion'] ?? ''),
+            'test' => !empty($o['test']), 'forceDark' => !empty($o['dark']),
+        ], $s, $list);
+    }
+
+    /** Bestätigungsmail (Double-Opt-in) – Text plus HTML im Design des Verteilers */
     public static function confirm(array $sub, ?array $list = null): array
     {
         $vars = ['name' => (string) ($sub['name'] ?: lt('Leserin, lieber Leser')), 'site' => self::siteName(), 'link' => Newsletter::confirmUrl($sub), 'days' => (string) Newsletter::CONFIRM_DAYS];
         $subject = Template::fill(Newsletter::text('doi_subject'), $vars);
         $text = Template::fill(Newsletter::text('doi_text'), $vars);
-        $paras = '';
+        $s = self::applyList(Design::forList($list)['s'], $list);
+        $font = Design::FONTS[$s['font']] ?? Design::FONTS['system'];
+        $rows = '';
         foreach (preg_split("~\n\s*\n~", $text) ?: [] as $p) {
             $p = trim($p);
-            if ($p === $vars['link']) { $paras .= '<p><a href="' . e($vars['link']) . '" style="display:inline-block;padding:12px 22px;border-radius:6px;background:' . e(self::color($list)) . ';color:#ffffff;text-decoration:none;font-weight:700">' . e(lt('Anmeldung bestätigen')) . '</a></p>'; continue; }
-            $paras .= '<p>' . nl2br(e($p)) . '</p>';
+            if ($p === $vars['link']) { $rows .= View::row(View::button(lt('Anmeldung bestätigen'), $vars['link'], $s, $font), '8px 36px 16px'); continue; }
+            $rows .= '<tr><td class="nl-pad nl-body" style="padding:8px 36px;font-family:' . $font . ';font-size:16px;line-height:1.6;color:' . e($s['text']) . '">' . nl2br(e($p)) . '</td></tr>';
         }
-        $html = self::layout(['subject' => $subject, 'preheader' => '', 'body' => $paras, 'image' => '', 'button_label' => '', 'button_href' => '',
-            'unsubscribe' => '', 'webversion' => '', 'test' => false], $list);
+        $html = self::layout(['subject' => $subject, 'preheader' => '', 'content' => $rows, 'unsubscribe' => '', 'webversion' => '', 'test' => false], $s, $list);
         $m = self::envelope($subject, $html, 0, $sub, '');
         $m['text'] = $text;   // eigener Text statt Umwandlung (Link vollständig)
         return $m + ['via' => (string) ($list['account'] ?? '')];
@@ -54,11 +65,21 @@ final class Message
     /** HTML für die Webversion (ohne persönliche Angaben) */
     public static function web(array $c): string
     {
-        $vars = ['name' => '', 'email' => '', 'unsubscribe' => '', 'webversion' => '', 'site' => self::siteName()];
-        return self::layout(['subject' => Template::fill((string) $c['subject'], $vars), 'preheader' => '',
-            'body' => self::absoluteLinks(Template::fill(rich((string) $c['body']), $vars, true)), 'image' => self::imageUrl((int) $c['image']),
-            'button_label' => (string) $c['button_label'], 'button_href' => self::href((string) $c['button_link']), 'unsubscribe' => '', 'webversion' => '', 'test' => false],
-            Repo::primaryList(Repo::campaignLists($c)));
+        return self::html($c, self::vars([]) + ['unsubscribe' => '', 'webversion' => ''], Repo::primaryList(Repo::campaignLists($c)));
+    }
+
+    /** Platzhalter-Werte */
+    public static function vars(array $sub): array
+    {
+        return ['name' => (string) ($sub['name'] ?? ''), 'email' => (string) ($sub['email'] ?? ''), 'site' => self::siteName()];
+    }
+
+    /** Älterer Verteiler mit eigener Farbe: überschreibt den Akzent des Designs */
+    private static function applyList(array $s, ?array $list): array
+    {
+        $c = (string) ($list['color'] ?? '');
+        if (preg_match('~^#[0-9a-f]{6}$~i', $c)) $s['accent'] = $c;
+        return $s;
     }
 
     private static function envelope(string $subject, string $html, int $campaign, array $sub, string $unsub): array
@@ -82,11 +103,10 @@ final class Message
         ];
     }
 
-    /** $list: Verteiler mit eigenem Auftritt (Fußzeile, Farbe) – leere Angaben → Einstellungen des Newsletters */
-    private static function layout(array $v, ?array $list = null): string
+    private static function layout(array $v, array $s, ?array $list): string
     {
         $footer = trim((string) ($list['footer'] ?? ''));
-        $v += ['site' => self::siteName(), 'color' => self::color($list), 'footer' => $footer !== '' ? $footer : trim((string) Newsletter::get('footer', '')), 'lang' => app()->lang ?? 'de'];
+        $v += ['site' => self::siteName(), 's' => $s, 'footer' => $footer !== '' ? $footer : trim((string) Newsletter::get('footer', '')), 'lang' => app()->lang ?? 'de', 'forceDark' => false];
         return \Core\Theme::capture(dirname(__DIR__) . '/views/mail/layout.php', $v);
     }
 
@@ -95,18 +115,10 @@ final class Message
         return site_name();
     }
 
+    /** Akzentfarbe (Design des Verteilers bzw. erstes Design) – für Bestätigung und Verwaltung */
     public static function color(?array $list = null): string
     {
-        $c = (string) ($list['color'] ?? '') ?: (string) Newsletter::get('color', '');
-        return preg_match('~^#[0-9a-f]{6}$~i', $c) ? $c : '#1f3a5f';
-    }
-
-    private static function imageUrl(int $id): string
-    {
-        if ($id <= 0 || !($m = \Core\Media::find($id)) || !str_starts_with((string) ($m['mime'] ?? ''), 'image/')) return '';
-        // JPEG für E-Mail-Programme ohne WebP (Outlook); fehlt die Größe, das Original
-        $file = \Core\Media::localFile($m, 1200, 'jpg');
-        return abs_url(is_file($file) ? \Core\Media::url($m, 1200, 'jpg') : \Core\Media::url($m));
+        return self::applyList(Design::forList($list)['s'], $list)['accent'];
     }
 
     /** Verweis (page:ID, /pfad, https://…) → absolute Adresse */
@@ -118,11 +130,5 @@ final class Message
         if ($link === '') return '';
         if (str_starts_with($link, '/')) return abs_url($link);
         return preg_match('~^(https?:|mailto:)~i', $link) ? $link : '';
-    }
-
-    /** Relative Links und Bilder im Inhalt absolut machen – E-Mail-Programme kennen die Website nicht */
-    private static function absoluteLinks(string $html): string
-    {
-        return (string) preg_replace_callback('~\b(href|src)="(/[^"/][^"]*|/)"~', fn($m) => $m[1] . '="' . e(abs_url(html_entity_decode($m[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'))) . '"', $html);
     }
 }

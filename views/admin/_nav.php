@@ -4,10 +4,11 @@ $items = [
     'campaigns' => ['/admin/newsletter', __('Ausgaben'), 'paper-plane-tilt'],
     'subscribers' => ['/admin/newsletter/empfaenger', __('Empfänger'), 'users'],
     'lists' => ['/admin/newsletter/verteiler', __('Verteiler'), 'list-bullets'],
+    'designs' => ['/admin/newsletter/designs', __('Designs'), 'palette'],
     'events' => ['/admin/newsletter/protokoll', __('Protokoll'), 'clipboard-text'],
     'settings' => ['/admin/newsletter/einstellungen', __('Einstellungen'), 'gear-six'],
 ];
-$current = ['campaign' => 'campaigns', 'subscriber' => 'subscribers'][$tab] ?? $tab;
+$current = ['campaign' => 'campaigns', 'subscriber' => 'subscribers', 'design' => 'designs'][$tab] ?? $tab;
 ?>
 <header class="adm-head">
   <div><p class="adm-eyebrow"><?= e(__('Erweiterung')) ?> · <?= e(__('Newsletter')) ?></p><h1><?= e(__('Newsletter')) ?></h1>
