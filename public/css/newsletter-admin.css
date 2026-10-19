@@ -1,0 +1,7 @@
+/* Newsletter (Erweiterung) – Verwaltung: nur eigene Klassen (nl-), Farben aus den Tokens der Verwaltung */
+.nl-inline{display:flex;flex-wrap:wrap;gap:.5rem .75rem;align-items:center;margin:0 0 .75rem}
+.nl-inline input[type=text],.nl-inline input[type=search],.nl-inline input[type=datetime-local],.nl-inline select{min-width:12rem;flex:1 1 12rem;max-width:26rem}
+.nl-inline label{display:inline-flex;gap:.35rem;align-items:center}
+.nl-scroll{overflow-x:auto}
+.nl-pager{display:flex;gap:1rem;align-items:center;justify-content:center;margin-top:1rem}
+.nl-preview{display:block;width:100%;height:70vh;border:1px solid currentColor;border-radius:8px;opacity:.95}

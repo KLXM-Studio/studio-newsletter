@@ -1,0 +1,11 @@
+{
+    "name": "klxm/studio-newsletter",
+    "description": "KLXM Studio – Newsletter: Anmeldung mit Double-Opt-in, Verteiler, gedrosselter Versand über eigenen SMTP-Server oder Mailjet (SMTP/API), Rückläufer per IMAP oder Webhook mit Hard/Soft-Bounce-Regeln und Sperrliste",
+    "type": "klxm-studio-extension",
+    "license": "MIT",
+    "keywords": ["klxm-studio", "klxm-studio-extension", "newsletter", "double-opt-in", "bounce", "imap", "mailjet", "verp"],
+    "homepage": "https://studio.klxm.de",
+    "authors": [{ "name": "KLXM Crossmedia GmbH and contributors" }],
+    "require": { "php": ">=8.4.1" },
+    "extra": { "klxm-studio": { "entry": "extension.php", "requires-core": ">=1.0.0" } }
+}
