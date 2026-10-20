@@ -3,7 +3,7 @@
   <h3>Einrichten</h3>
   <ol>
     <li><b>E-Mail-Konto:</b> Unter <b>Grundeinstellungen → E-Mail-Versand</b> ein Konto anlegen (Absender z. B. news@ihre-domain.de) und dem Zweck <b>„Newsletter versenden“</b> zuordnen.</li>
-    <li><b>Newsletter → Einstellungen:</b> Versandart wählen, Absenderangaben für den Fuß (Name, Anschrift – Pflicht wie im Impressum) und bei Bedarf Texte der Einwilligung und der Bestätigungsmail anpassen.</li>
+    <li><b>Newsletter → Einstellungen:</b> das E-Mail-Konto wählen – Mailjet oder eigener Server ergibt sich daraus, ebenso Mailjet-Zugang und Bounce-Postfach (aus den Zugangsdaten des Kontos), Absenderangaben für den Fuß (Name, Anschrift – Pflicht wie im Impressum) und bei Bedarf Texte der Einwilligung und der Bestätigungsmail anpassen.</li>
     <li><b>Anmeldung auf der Website:</b> den Block <b>„Newsletter-Anmeldung“</b> auf einer Seite einfügen (Gruppe „Formulare“). Mit zwei oder mehr öffentlichen Verteilern können Besucher Themen wählen.</li>
   </ol>
   <h3>Mehrere Newsletter (Verteiler)</h3>
@@ -22,7 +22,7 @@
   <h3>Ausgaben gestalten: Vorlagen, Bausteine, Designs</h3>
   <ul>
     <li><b>Neue Ausgabe</b> beginnt mit einer <b>Vorlage</b>: Klassisch, Magazin, Veranstaltungen, Kurzinfo, Einladung, Rückblick – oder leer. Jede bringt Bausteine mit Beispieltexten und ein passendes Design mit. Eigene Ausgaben lassen sich mit <b>„Als Vorlage speichern“</b> wiederverwenden.</li>
-    <li>Der Inhalt besteht aus <b>Bausteinen</b> wie im Block-Editor: Aufmacher, Überschrift, Text, Bild, Bild und Text, Spalten, Einträge aus Datentabelle (z. B. die nächsten Termine – automatisch aktuell), Knopf, Zitat, Trenner. Hinzufügen, mit ↑ ↓ ordnen, aufklappen zum Bearbeiten.</li>
+    <li>Der Inhalt besteht aus <b>Bausteinen</b> wie im Block-Editor: Aufmacher, Überschrift, Text, Bild, Bild und Text, Spalten, Einträge aus Datentabelle (neueste bzw. kommende – z. B. die nächsten Termine, automatisch aktuell –, gefiltert nach Suchbegriff oder Feld, oder einzeln ausgewählt), Knopf, Zitat, Trenner. Hinzufügen, mit ↑ ↓ ordnen, aufklappen zum Bearbeiten.</li>
     <li>Rechts zeigt die <b>Live-Vorschau</b> die fertige Mail – umschaltbar auf Handy und Dunkelmodus. Leere Bilder erscheinen dort als Platzhalter, in der Mail fehlen sie einfach.</li>
     <li><b>Kopf und Fuß</b> gestalten Sie im Design selbst – mit Bausteinen wie im Inhalt: Logo (mit Titel und Unterzeile rechts, links, darunter oder darüber – z. B. „Newsletter · {date}“; Platzhalter {subject}, {date}, {site}), Linkleiste, Bild, Social Media, Fußtext mit Anschrift und Abmeldelink, Abstand und alle übrigen. Jeder Baustein hat unter „Gestaltung“ einen Hintergrund (Inhaltsfläche, zarter Akzent, Akzentfarbe, dunkel oder eigene Farbe) und den Abstand oben/unten; auf dunklem Grund wird die Schrift automatisch hell. Der Abmeldelink ist Pflicht – fehlt er, hängt die Erweiterung ihn an.</li>
     <li>In der Vorschau öffnet ein <b>Klick auf einen Baustein</b> ihn links zum Bearbeiten; Bausteine lassen sich am Titel <b>ziehen</b>.</li>

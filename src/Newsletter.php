@@ -68,10 +68,39 @@ final class Newsletter
         try { return \Core\Settings::decrypt($v); } catch (\Throwable) { return ''; }
     }
 
+    /**
+     * E-Mail-Konto für den Versand: in den Einstellungen gewählt (Grundeinstellungen → E-Mail-Versand), sonst das Konto des
+     * Zwecks „Newsletter versenden“. Ein nicht versandbereites gewähltes Konto fällt auf den Zweck zurück.
+     */
+    public static function account(): array
+    {
+        $id = (string) self::get('account', '');
+        if ($id !== '' && ($a = \Core\Mail\Accounts::find($id)) && \Core\Mail\Accounts::ready($a)) return $a;
+        return \Core\Mail\Accounts::route(self::PURPOSE);
+    }
+
+    /** Konto eines Versands: eigenes Konto des Verteilers ($via) oder das des Newsletters */
+    public static function accountFor(string $via = ''): array
+    {
+        if ($via !== '' && ($a = \Core\Mail\Accounts::find($via)) && \Core\Mail\Accounts::ready($a)) return $a;
+        return self::account();
+    }
+
+    /**
+     * Versandweg aus dem Konto: „Mailjet (API)“ → mailjet_api, Server *.mailjet.com bzw. DSN mailjet+… → mailjet_smtp
+     * (Rückläufer per Webhook), sonst smtp (eigener Server, Rückläufer per Bounce-Postfach).
+     */
+    public static function modeFor(array $acc): string
+    {
+        $t = (string) ($acc['transport'] ?? '');
+        if ($t === 'ext:mailjet') return 'mailjet_api';
+        if (str_contains(strtolower((string) ($acc['host'] ?? '')), 'mailjet.com') || ($t === 'dsn' && str_starts_with(strtolower((string) ($acc['dsn'] ?? '')), 'mailjet'))) return 'mailjet_smtp';
+        return 'smtp';
+    }
+
     public static function mode(): string
     {
-        $m = (string) self::get('mode', 'smtp');
-        return in_array($m, self::MODES, true) ? $m : 'smtp';
+        return self::modeFor(self::account());
     }
 
     public static function usesMailjet(): bool
@@ -79,8 +108,11 @@ final class Newsletter
         return self::mode() !== 'smtp';
     }
 
-    public static function mailjet(): Api
+    /** Mailjet-API mit den Zugangsdaten des Kontos (Benutzer = API-Schlüssel, Passwort = Secret); ältere Einstellungen als Rückfall */
+    public static function mailjet(?array $acc = null): Api
     {
+        $acc ??= self::account();
+        if (self::modeFor($acc) !== 'smtp' && ($acc['user'] ?? '') !== '' && ($acc['pass'] ?? '') !== '') return new Api((string) $acc['user'], (string) $acc['pass']);
         return new Api((string) self::get('mailjet_key', ''), self::secret('mailjet_secret'));
     }
 
@@ -168,7 +200,7 @@ final class Newsletter
     /** Domain für Message-ID und Rücklaufadresse */
     public static function mailDomain(): string
     {
-        $b = (string) self::get('bounce_address', '');
+        $b = Bounces::settings()['address'] ?: (string) (self::account()['from'] ?? '');
         if (($at = strrpos($b, '@')) !== false) return substr($b, $at + 1);
         return (string) (parse_url(site_url(), PHP_URL_HOST) ?: 'localhost');
     }

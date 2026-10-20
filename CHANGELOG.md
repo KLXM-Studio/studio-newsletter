@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 – 2026-10-20
+
+- Einstellungen: E-Mail-Konto direkt wählen; Versandweg ergibt sich aus dem Konto (Mailjet API/SMTP → Webhook, sonst Bounce-Postfach). Mailjet-Zugang und Bounce-Postfach (Rücklaufadresse = Absender, IMAP-Server smtp.→imap., Benutzer, Passwort) kommen aus dem Konto – eigene Werte nur noch zum Überschreiben.
+- Verteiler mit eigenem Absender: Versandweg und Rücklaufadresse je Konto.
+- Baustein „Einträge aus Datentabelle“: neueste/kommende, gefiltert (Suchbegriff, Feld-Bedingung, Sortierung) oder ausgewählt (Link-Picker, auch mehrere Tabellen, Reihenfolge per Ziehen).
+
 ## 0.4.0 – 2026-10-20
 
 - Kopf und Fuß jedes Designs aus Bausteinen (wie CleverReach/Mailjet): neue Bausteine Logo, Linkleiste, Social Media, Fußtext mit Abmeldelink, Abstand.

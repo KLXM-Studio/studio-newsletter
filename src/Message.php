@@ -103,13 +103,13 @@ final class Message
             $headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
         }
         $headers['List-Id'] = '<newsletter.' . Newsletter::mailDomain() . '>';
-        $bounce = (string) Newsletter::get('bounce_address', '');
+        $bounce = Bounces::settings()['address'];
         return [
             'to' => (string) ($sub['email'] ?? ''), 'to_name' => (string) ($sub['name'] ?? ''),
             'subject' => $subject, 'html' => $html, 'text' => Template::toText($html), 'headers' => $headers,
             'ref' => $ref, 'custom_id' => 'nl.' . $ref,
             'message_id' => Ref::messageId(Newsletter::mailDomain(), $campaign, $sid, $key),
-            'return_path' => Newsletter::mode() === 'smtp' && $bounce !== '' ? Ref::verp($bounce, $campaign, $sid, $key) : '',
+            'return_path' => $bounce !== '' ? Ref::verp($bounce, $campaign, $sid, $key) : '',   // nur genutzt bei eigenem Server (Sender)
         ];
     }
 

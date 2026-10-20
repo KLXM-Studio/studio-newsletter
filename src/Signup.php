@@ -62,8 +62,9 @@ final class Signup
         $pending = array_filter(array_map('intval', explode(',', (string) ($sub['pending_lists'] ?? ''))));
         $m = Message::confirm($sub, Repo::primaryList($pending));
         $o = ['purpose' => Newsletter::PURPOSE, 'html' => $m['html'], 'headers' => array_diff_key($m['headers'], ['Precedence' => 1, 'List-Id' => 1]), 'message_id' => $m['message_id']];
-        if ($m['via'] !== '') $o['via'] = $m['via'];
-        if ($m['return_path'] !== '') $o['return_path'] = $m['return_path'];
+        $acc = Newsletter::accountFor((string) $m['via']);
+        $o['via'] = (string) $acc['id'];
+        if ($m['return_path'] !== '' && Newsletter::modeFor($acc) === 'smtp') $o['return_path'] = $m['return_path'];
         $err = Mailer::send($m['subject'], $m['text'], [$m['to']], $o);
         if ($err) error_log('[newsletter] Bestätigung an #' . (int) $sub['id'] . ': ' . $err);
         return $err;

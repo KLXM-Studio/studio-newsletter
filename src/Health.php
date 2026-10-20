@@ -17,7 +17,7 @@ final class Health
     /** DNS-Prüfung der Absender-Domain, einen Tag zwischengespeichert */
     public static function dns(bool $useCache = true, bool $refresh = false): array
     {
-        $acc = \Core\Mail\Accounts::route(Newsletter::PURPOSE);
+        $acc = Newsletter::account();
         $domain = Address::domain((string) ($acc['from'] ?? ''));
         $cache = json_decode((string) Newsletter::get('dns', ''), true);
         if ($useCache && !$refresh && is_array($cache) && ($cache['domain'] ?? '') === $domain && (int) ($cache['at'] ?? 0) > time() - 86400) return $cache;
@@ -32,15 +32,14 @@ final class Health
         if (!Newsletter::on()) return [];
         $out = [];
         $mode = Newsletter::mode();
-        $acc = \Core\Mail\Accounts::route(Newsletter::PURPOSE);
-        if ($mode !== 'mailjet_api' && !\Core\Mail\Accounts::ready($acc)) $out[__('Newsletter: kein versandbereites E-Mail-Konto für den Zweck „Newsletter versenden“')] = false;
+        $acc = Newsletter::account();
+        if (!\Core\Mail\Accounts::ready($acc)) $out[__('Newsletter: kein versandbereites E-Mail-Konto für den Zweck „Newsletter versenden“')] = false;
         if ($mode === 'smtp') {
-            if (trim((string) Newsletter::get('bounce_address', '')) === '') $out[__('Newsletter: keine Rücklaufadresse – Rückläufer landen beim Absender und werden nicht ausgewertet')] = null;
             if (!Bounces::imapConfigured()) $out[__('Newsletter: Bounce-Postfach (IMAP) nicht eingerichtet – unzustellbare Adressen werden nicht gesperrt')] = null;
             $last = json_decode((string) Newsletter::get('imap_last', ''), true);
             if (is_array($last) && ($last['error'] ?? '') !== '') $out[__('Newsletter: Bounce-Postfach nicht erreichbar ({msg})', ['msg' => mb_substr((string) $last['error'], 0, 120)])] = false;
         } else {
-            if (!Newsletter::mailjet()->configured()) $out[__('Newsletter: Mailjet-Schlüssel fehlen')] = false;
+            if (!Newsletter::mailjet()->configured()) $out[__('Newsletter: Mailjet-Schlüssel fehlen (Benutzer = API-Schlüssel, Passwort = Secret im E-Mail-Konto)')] = false;
             $hook = (int) Newsletter::get('hook_last', 0);
             $sent = (int) app()->db->fetchValue('SELECT COUNT(*) FROM newsletter_campaigns WHERE status IN (\'sent\', \'sending\') AND sent > 0');
             if ($sent && !$hook) $out[__('Newsletter: noch kein Webhook von Mailjet empfangen – unter Einstellungen „Webhooks bei Mailjet einrichten“')] = null;

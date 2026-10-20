@@ -138,6 +138,15 @@ final class SelfTest
         });
         self::eq('DNS: SPF, DMARC (quarantine), MX', [$dns['spf'], $dns['dmarc'], $dns['dmarc_policy'], $dns['mx']], [true, true, 'quarantine', true]);
 
+        echo "Konto → Versandweg, Bounce-Postfach aus dem Konto\n";
+        self::eq('Mailjet (API), Mailjet (SMTP), eigener Server erkannt', [
+            Newsletter::modeFor(['transport' => 'ext:mailjet']), Newsletter::modeFor(['transport' => 'smtp', 'host' => 'in-v3.mailjet.com']),
+            Newsletter::modeFor(['transport' => 'dsn', 'dsn' => 'mailjet+api://k:s@default']), Newsletter::modeFor(['transport' => 'smtp', 'host' => 'smtp.example.org'])],
+            ['mailjet_api', 'mailjet_smtp', 'mailjet_smtp', 'smtp']);
+        self::eq('Bounce-Vorgaben aus dem Konto (smtp. → imap.)', Bounces::defaults(['transport' => 'smtp', 'host' => 'smtp.example.org', 'from' => 'news@example.org', 'user' => 'news@example.org', 'pass' => 'x']),
+            ['address' => 'news@example.org', 'host' => 'imap.example.org', 'user' => 'news@example.org', 'pass' => 'x']);
+        self::eq('Mailjet-Konto: keine IMAP-Vorgaben', Bounces::defaults(['transport' => 'ext:mailjet', 'from' => 'a@b.c'])['host'], '');
+
         echo "Designs und Vorlagen\n";
         foreach (Design::PRESETS as $k => $p) self::eq("Design „{$p['name']}“: Kontraste WCAG AA", Design::contrastIssues(Design::settings(['settings' => json_encode($p + Design::DEFAULTS)])), []);
         foreach (Templates::builtin() as $k => $t) {

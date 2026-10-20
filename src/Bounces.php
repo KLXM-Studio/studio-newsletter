@@ -19,15 +19,38 @@ use Klxm\Newsletter\Engine\Mailjet\Events;
  */
 final class Bounces
 {
+    /**
+     * Vorgaben aus dem E-Mail-Konto (eigener Server): Rücklaufadresse = Absender, IMAP-Server = SMTP-Server mit „imap.“ statt
+     * „smtp.“/„mail.“ bleibt, Benutzer und Passwort = die des Kontos. So genügt ein Konto; eigene Werte überschreiben.
+     * @return array{address: string, host: string, user: string, pass: string}
+     */
+    public static function defaults(?array $acc = null): array
+    {
+        $acc ??= Newsletter::account();
+        if (Newsletter::modeFor($acc) !== 'smtp') return ['address' => '', 'host' => '', 'user' => '', 'pass' => ''];
+        $host = strtolower(trim((string) ($acc['host'] ?? '')));
+        if (str_starts_with($host, 'smtp.')) $host = 'imap.' . substr($host, 5);
+        return ['address' => (string) ($acc['from'] ?? ''), 'host' => $host, 'user' => (string) ($acc['user'] ?? ''), 'pass' => (string) ($acc['pass'] ?? '')];
+    }
+
+    /** Wirksame Werte: eigene Einstellungen, sonst aus dem Konto */
+    public static function settings(): array
+    {
+        $d = self::defaults();
+        return ['address' => trim((string) Newsletter::get('bounce_address', '')) ?: $d['address'], 'host' => trim((string) Newsletter::get('imap_host', '')) ?: $d['host'],
+            'user' => trim((string) Newsletter::get('imap_user', '')) ?: $d['user'], 'pass' => Newsletter::secret('imap_pass') ?: $d['pass']];
+    }
+
     public static function imapConfigured(): bool
     {
-        return trim((string) Newsletter::get('imap_host', '')) !== '' && trim((string) Newsletter::get('imap_user', '')) !== '' && Newsletter::secret('imap_pass') !== '';
+        $s = self::settings();
+        return $s['host'] !== '' && $s['user'] !== '' && $s['pass'] !== '';
     }
 
     public static function client(): Client
     {
-        return new Client(trim((string) Newsletter::get('imap_host', '')), (int) Newsletter::get('imap_port', 993) ?: 993,
-            (string) Newsletter::get('imap_security', 'ssl'), trim((string) Newsletter::get('imap_user', '')), Newsletter::secret('imap_pass'),
+        $s = self::settings();
+        return new Client($s['host'], (int) Newsletter::get('imap_port', 993) ?: 993, (string) Newsletter::get('imap_security', 'ssl'), $s['user'], $s['pass'],
             20, (bool) Newsletter::get('imap_verify', true));
     }
 

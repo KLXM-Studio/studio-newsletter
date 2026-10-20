@@ -12,12 +12,17 @@ $ok = fn(?bool $v) => $v === null ? '<span class="adm-muted">' . e(__('nicht pr�
 $act = fn(string $a, string $label, string $icon = 'arrows-clockwise') => '<form method="post" action="' . e(url('/admin/newsletter/einstellungen/aktion')) . '">' . csrf_field()
     . '<input type="hidden" name="_action" value="' . e($a) . '"><button class="adm-btn">' . icon($icon) . ' ' . e($label) . '</button></form>';
 ?>
+<?php $kind = ['smtp' => __('eigener Server – Rückläufer über das Bounce-Postfach (IMAP)'), 'mailjet_smtp' => __('Mailjet über SMTP – Rückläufer per Webhook'), 'mailjet_api' => __('Mailjet über die API – Rückläufer per Webhook')][$mode];
+      $bs = Bounces::settings(); ?>
 <section class="adm-card">
-  <h2><?= e(__('Konto für den Versand')) ?></h2>
-  <p><?= e(__('Zweck „Newsletter versenden“ → Konto „{name}“: {desc}', ['name' => (string) ($account['label'] ?? $account['id'] ?? ''), 'desc' => \Core\Mail\Accounts::describe($account)])) ?>
-    <a href="<?= e(url('/admin/system#mail')) ?>"><?= e(__('E-Mail-Versand öffnen')) ?></a></p>
-  <?php if ($mode === 'mailjet_smtp'): ?><p class="adm-muted"><?= e(__('Für Mailjet über SMTP: im Konto Server in-v3.mailjet.com, Port 587, TLS, Benutzer = API-Schlüssel, Passwort = Secret Key.')) ?></p><?php endif; ?>
-  <?php if ($mode === 'mailjet_api'): ?><p class="adm-muted"><?= e(__('Mailjet über die API nutzt vom Konto nur Absender, Absendername und Antwortadresse. Tipp: Jedes Konto kann auch die Versandart „Mailjet (API)“ wählen – dann gehen z. B. auch Formular-Mails über Mailjet.')) ?></p><?php endif; ?>
+  <h2><?= e(__('So wird versendet')) ?></h2>
+  <dl class="adm-dl">
+    <div><dt><?= e(__('Konto')) ?></dt><dd><?= e((string) ($account['label'] ?: $account['id'])) ?> – <?= e(\Core\Mail\Accounts::describe($account)) ?> · <a href="<?= e(url('/admin/system#mail')) ?>"><?= e(__('E-Mail-Versand öffnen')) ?></a></dd></div>
+    <div><dt><?= e(__('Versandweg')) ?></dt><dd><?= e($kind) ?></dd></div>
+    <?php if ($mode === 'smtp'): ?><div><dt><?= e(__('Bounce-Postfach')) ?></dt><dd><?= e(__('Server: {h}', ['h' => $bs['host'] ?: '–'])) ?> · <?= e(__('Benutzer: {u}', ['u' => $bs['user'] ?: '–'])) ?> · <?= e(__('Rücklaufadresse: {a}', ['a' => $bs['address'] ?: '–'])) ?>
+      <?php if (!Bounces::imapConfigured()): ?><br><span class="adm-muted"><?= icon('warning') ?> <?= e(__('Unvollständig – das Konto hat keinen Benutzer bzw. kein Passwort. Werte unten unter „Rückläufer“ eintragen.')) ?></span><?php endif; ?></dd></div><?php endif; ?>
+  </dl>
+  <p class="adm-muted"><?= e(__('Das Konto wählen Sie unten. Für Mailjet: im Konto Server in-v3.mailjet.com (SMTP) oder die Versandart „Mailjet (API)“ – jeweils Benutzer = API-Schlüssel, Passwort = Secret Key. Für die Webhooks nutzt die Erweiterung dieselben Zugangsdaten.')) ?></p>
 </section>
 
 <form method="post" action="<?= e(url('/admin/newsletter/einstellungen')) ?>" novalidate>

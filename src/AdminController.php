@@ -184,7 +184,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
         if (!Blocks::of($c)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Die Ausgabe hat noch keinen Inhalt.'));
         if (!Campaigns::audience(Repo::campaignLists($c))) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Die gewählten Verteiler haben keine aktiven Empfänger.'));
-        if ($c['status'] === 'draft' && !\Core\Mail\Accounts::ready(\Core\Mail\Accounts::route(Newsletter::PURPOSE)) && !(Newsletter::mode() === 'mailjet_api' && Newsletter::mailjet()->configured())) {
+        if ($c['status'] === 'draft' && !\Core\Mail\Accounts::ready(Newsletter::account())) {
             return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Kein versandbereites E-Mail-Konto für den Zweck „Newsletter“ (Grundeinstellungen → E-Mail-Versand).'));
         }
         $at = trim((string) ($r->post['at'] ?? ''));
@@ -430,13 +430,20 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public static function settingsFields(): array
     {
-        return [
+        $accounts = ['' => __('wie Zweck „Newsletter versenden“ (Grundeinstellungen)')];
+        foreach (\Core\Mail\Accounts::all() as $id => $a) {
+            if ($id === 'network') continue;
+            $kind = ['smtp' => __('eigener Server'), 'mailjet_smtp' => 'Mailjet (SMTP)', 'mailjet_api' => 'Mailjet (API)'][Newsletter::modeFor($a)];
+            $accounts[(string) $id] = ($a['label'] ?: ($id === 'standard' ? __('Standard') : $id)) . ($a['from'] !== '' ? ' – ' . $a['from'] : '') . ' · ' . $kind
+                . (\Core\Mail\Accounts::ready($a) ? '' : ' (' . __('nicht versandbereit') . ')');
+        }
+        $mode = Newsletter::mode();
+        $acc = Newsletter::account();
+        $d = Bounces::defaults($acc);
+        $f = [
             ['type' => 'heading', 'label' => __('Versand')],
-            ['name' => 'mode', 'label' => __('Versandart'), 'type' => 'select', 'required' => true, 'options' => [
-                'smtp' => __('Eigener SMTP-Server – Rückläufer über das Bounce-Postfach (IMAP)'),
-                'mailjet_smtp' => __('Mailjet über SMTP – Rückläufer per Webhook'),
-                'mailjet_api' => __('Mailjet über die API – Rückläufer per Webhook')],
-                'help' => __('Absender, Absendername und SMTP-Zugang kommen vom E-Mail-Konto, das unter Grundeinstellungen → E-Mail-Versand dem Zweck „Newsletter versenden“ zugeordnet ist.')],
+            ['name' => 'account', 'label' => __('E-Mail-Konto'), 'type' => 'select', 'options' => $accounts,
+                'help' => __('Konten legen Sie unter Grundeinstellungen → E-Mail-Versand an. Daraus ergibt sich alles Weitere: Mailjet-Konto → Rückläufer per Webhook, sonst Bounce-Postfach (IMAP) – die passenden Einstellungen erscheinen nach dem Speichern.')],
             ['name' => 'batch', 'label' => __('Mails je Minute'), 'type' => 'number', 'min' => 10, 'max' => 2000, 'width' => 'half',
                 'help' => __('Höchstens so viele je Lauf; große Anbieter (Gmail, GMX/Web.de, T-Online, Outlook) werden zusätzlich einzeln gedrosselt.')],
             ['name' => 'footer', 'label' => __('Absenderangaben im Fuß jeder Ausgabe'), 'type' => 'textarea', 'rows' => 3, 'max' => 600,
@@ -447,32 +454,39 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             ['name' => 'doi_subject', 'label' => __('Bestätigungsmail: Betreff'), 'type' => 'text', 'max' => 150],
             ['name' => 'doi_text', 'label' => __('Bestätigungsmail: Text'), 'type' => 'textarea', 'rows' => 8, 'max' => 3000,
                 'help' => __('Platzhalter: {name}, {site}, {link} (Bestätigungslink – muss enthalten sein), {days}. Leer = Standardtext.')],
-            ['type' => 'heading', 'label' => __('Rückläufer (eigener SMTP-Server)'), 'show_if' => ['mode' => ['smtp']]],
-            ['name' => 'bounce_address', 'label' => __('Rücklaufadresse'), 'type' => 'email', 'show_if' => ['mode' => ['smtp']],
-                'help' => __('Postfach für unzustellbare Mails, z. B. bounce@news.ihre-domain.de. Jede Mail bekommt daraus eine eigene Adresse (bounce+…@), damit Rückläufer eindeutig zuzuordnen sind – das Postfach muss „+“-Adressen annehmen (bei Plesk Standard).')],
-            ['name' => 'imap_host', 'label' => __('IMAP-Server'), 'type' => 'text', 'max' => 191, 'show_if' => ['mode' => ['smtp']], 'width' => 'half'],
-            ['name' => 'imap_port', 'label' => __('Port'), 'type' => 'number', 'min' => 1, 'max' => 65535, 'show_if' => ['mode' => ['smtp']], 'width' => 'half'],
-            ['name' => 'imap_security', 'label' => __('Verschlüsselung'), 'type' => 'select', 'options' => ['ssl' => 'SSL/TLS (993)', 'starttls' => 'STARTTLS (143)'], 'show_if' => ['mode' => ['smtp']], 'width' => 'half'],
-            ['name' => 'imap_verify', 'label' => __('Zertifikat prüfen'), 'type' => 'bool', 'show_if' => ['mode' => ['smtp']], 'width' => 'half',
-                'help' => __('Nur für eigene Server mit selbst signiertem Zertifikat ausschalten.')],
-            ['name' => 'imap_user', 'label' => __('Benutzer'), 'type' => 'text', 'max' => 191, 'show_if' => ['mode' => ['smtp']], 'width' => 'half'],
-            ['name' => 'imap_pass', 'label' => __('Passwort'), 'type' => 'secret', 'show_if' => ['mode' => ['smtp']], 'width' => 'half', 'help' => __('Leer lassen = unverändert.')],
-            ['name' => 'imap_folder', 'label' => __('Ordner'), 'type' => 'text', 'max' => 120, 'show_if' => ['mode' => ['smtp']], 'width' => 'half'],
-            ['name' => 'imap_after', 'label' => __('Verarbeitete Nachrichten'), 'type' => 'select', 'show_if' => ['mode' => ['smtp']], 'width' => 'half',
-                'options' => ['seen' => __('als gelesen markieren'), 'move' => __('in Ordner „Newsletter-verarbeitet“ verschieben'), 'delete' => __('löschen')]],
+        ];
+        if ($mode === 'smtp') {
+            $from = fn(string $v) => $v !== '' ? __('leer = vom E-Mail-Konto: {v}', ['v' => $v]) : __('leer = vom E-Mail-Konto');
+            $f = array_merge($f, [
+                ['type' => 'heading', 'label' => __('Rückläufer (Bounce-Postfach)')],
+                ['name' => 'bounce_address', 'label' => __('Rücklaufadresse'), 'type' => 'email', 'placeholder' => $d['address'],
+                    'help' => __('Leer = Absender des Kontos ({v}). Jede Mail bekommt daraus eine eigene Adresse (…+bezug@), damit Rückläufer eindeutig zuzuordnen sind – das Postfach muss „+“-Adressen annehmen (bei Plesk Standard). Ein eigenes Postfach (z. B. bounce@…) hält das Absender-Postfach sauber.', ['v' => $d['address'] ?: '–'])],
+                ['name' => 'imap_host', 'label' => __('IMAP-Server'), 'type' => 'text', 'max' => 191, 'width' => 'half', 'placeholder' => $d['host'], 'help' => $from($d['host'])],
+                ['name' => 'imap_user', 'label' => __('Benutzer'), 'type' => 'text', 'max' => 191, 'width' => 'half', 'placeholder' => $d['user'], 'help' => $from($d['user'])],
+                ['name' => 'imap_pass', 'label' => __('Passwort'), 'type' => 'secret', 'width' => 'half', 'help' => __('Leer = Passwort des E-Mail-Kontos bzw. unverändert.')],
+                ['name' => 'imap_port', 'label' => __('Port'), 'type' => 'number', 'min' => 1, 'max' => 65535, 'width' => 'half'],
+                ['name' => 'imap_security', 'label' => __('Verschlüsselung'), 'type' => 'select', 'options' => ['ssl' => 'SSL/TLS (993)', 'starttls' => 'STARTTLS (143)'], 'width' => 'half'],
+                ['name' => 'imap_verify', 'label' => __('Zertifikat prüfen'), 'type' => 'bool', 'width' => 'half', 'help' => __('Nur für eigene Server mit selbst signiertem Zertifikat ausschalten.')],
+                ['name' => 'imap_folder', 'label' => __('Ordner'), 'type' => 'text', 'max' => 120, 'width' => 'half'],
+                ['name' => 'imap_after', 'label' => __('Verarbeitete Nachrichten'), 'type' => 'select', 'width' => 'half',
+                    'options' => ['seen' => __('als gelesen markieren'), 'move' => __('in Ordner „Newsletter-verarbeitet“ verschieben'), 'delete' => __('löschen')]],
+            ]);
+        } else {
+            $f = array_merge($f, [
+                ['type' => 'heading', 'label' => __('Mailjet')],
+                ['name' => 'mailjet_track', 'label' => __('Öffnungen und Klicks bei Mailjet messen'), 'type' => 'bool',
+                    'help' => __('Standard aus (Datenschutz). Eingeschaltet setzt Mailjet ein Zählpixel und leitet Links um – in der Datenschutzerklärung erwähnen.')],
+            ]);
+            if ($mode === 'mailjet_api') $f[] = ['name' => 'mailjet_sandbox', 'label' => __('Sandbox (Mailjet prüft nur, versendet nicht)'), 'type' => 'bool'];
+        }
+        return array_merge($f, [
+            ['type' => 'heading', 'label' => __('Regeln und Aufbewahrung')],
             ['name' => 'soft_threshold', 'label' => __('Sperren nach Soft Bounces'), 'type' => 'number', 'min' => 1, 'max' => 10, 'width' => 'half',
                 'help' => __('Vorübergehende Fehler (Postfach voll …) aus mindestens zwei Ausgaben, gezählt innerhalb des Zeitraums.')],
             ['name' => 'soft_window', 'label' => __('Zeitraum (Tage)'), 'type' => 'number', 'min' => 7, 'max' => 365, 'width' => 'half'],
-            ['type' => 'heading', 'label' => __('Mailjet'), 'show_if' => ['mode' => ['mailjet_smtp', 'mailjet_api']]],
-            ['name' => 'mailjet_key', 'label' => __('API-Schlüssel'), 'type' => 'text', 'max' => 120, 'show_if' => ['mode' => ['mailjet_smtp', 'mailjet_api']], 'width' => 'half'],
-            ['name' => 'mailjet_secret', 'label' => __('Secret Key'), 'type' => 'secret', 'show_if' => ['mode' => ['mailjet_smtp', 'mailjet_api']], 'width' => 'half', 'help' => __('Leer lassen = unverändert.')],
-            ['name' => 'mailjet_track', 'label' => __('Öffnungen und Klicks bei Mailjet messen'), 'type' => 'bool', 'show_if' => ['mode' => ['mailjet_smtp', 'mailjet_api']],
-                'help' => __('Standard aus (Datenschutz). Eingeschaltet setzt Mailjet ein Zählpixel und leitet Links um – in der Datenschutzerklärung erwähnen.')],
-            ['name' => 'mailjet_sandbox', 'label' => __('Sandbox (Mailjet prüft nur, versendet nicht)'), 'type' => 'bool', 'show_if' => ['mode' => ['mailjet_api']]],
-            ['type' => 'heading', 'label' => __('Aufbewahrung')],
             ['name' => 'retention', 'label' => __('Protokoll aufbewahren (Tage)'), 'type' => 'number', 'min' => 30, 'max' => 3650, 'width' => 'half',
                 'help' => __('Unbestätigte Anmeldungen werden nach {n} Tagen gelöscht.', ['n' => Newsletter::CONFIRM_DAYS + 1])],
-        ];
+        ]);
     }
 
     private static function settingsValues(): array
@@ -482,13 +496,12 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             if (!isset($f['name']) || ($f['type'] ?? '') === 'secret') continue;
             $out[$f['name']] = Newsletter::get($f['name'], null);
         }
-        $out['mode'] = Newsletter::mode();
         $out += ['batch' => 200, 'imap_port' => 993, 'imap_security' => 'ssl', 'imap_verify' => true, 'imap_folder' => 'INBOX', 'imap_after' => 'seen',
             'soft_threshold' => 3, 'soft_window' => 60, 'retention' => 365];
         foreach (['batch' => 200, 'imap_port' => 993, 'soft_threshold' => 3, 'soft_window' => 60, 'retention' => 365, 'imap_folder' => 'INBOX', 'imap_after' => 'seen', 'imap_security' => 'ssl'] as $k => $d) {
-            if ($out[$k] === null || $out[$k] === '') $out[$k] = $d;
+            if (($out[$k] ?? null) === null || $out[$k] === '') $out[$k] = $d;
         }
-        if ($out['imap_verify'] === null) $out['imap_verify'] = true;
+        if (array_key_exists('imap_verify', $out) && $out['imap_verify'] === null) $out['imap_verify'] = true;
         foreach (['consent_text', 'doi_subject', 'doi_text'] as $k) if ((string) ($out[$k] ?? '') === '') $out[$k] = Newsletter::text($k);
         return $out;
     }
@@ -498,7 +511,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         $this->guard($r);
         return $this->show('settings', ['values' => $values ?: self::settingsValues(), 'errors' => $errors, 'tab' => 'settings', 'title' => __('Einstellungen'),
             'hook' => Newsletter::hookUrl(), 'dns' => Health::dns(true), 'imapLast' => json_decode((string) Newsletter::get('imap_last', ''), true) ?: [],
-            'hookLast' => (int) Newsletter::get('hook_last', 0), 'account' => \Core\Mail\Accounts::route(Newsletter::PURPOSE)], $status);
+            'hookLast' => (int) Newsletter::get('hook_last', 0), 'account' => Newsletter::account()], $status);
     }
 
     public function saveSettings(Request $r): Response
@@ -507,7 +520,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         [$v, $errors] = Fields::sanitize(self::settingsFields(), (array) ($r->post['f'] ?? []));
         $doi = trim((string) ($v['doi_text'] ?? ''));
         if ($doi !== '' && !str_contains($doi, '{link}')) $errors['doi_text'] = __('Der Text braucht den Platzhalter {link}.');
-        if (($v['mode'] ?? '') === 'smtp' && ($b = trim((string) ($v['bounce_address'] ?? ''))) !== '' && str_contains(strstr($b, '@', true) ?: '', '+')) {
+        if (($b = trim((string) ($v['bounce_address'] ?? ''))) !== '' && str_contains(strstr($b, '@', true) ?: '', '+')) {
             $errors['bounce_address'] = __('Bitte die Grundadresse ohne „+“ eintragen.');
         }
         if ($errors) return $this->settings($r, $v, $errors, 422);

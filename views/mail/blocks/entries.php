@@ -1,36 +1,66 @@
 <?php
 /**
  * Einträge einer Datentabelle (z. B. Termine, Beiträge): Titel, Bild, Datum, kurzer Text, Link zur Detailseite.
- * Nur veröffentlichte Einträge; „Nur kommende“ für Tabellen mit Datumsfeld (aufsteigend ab heute).
+ * Arten: neueste/kommende (Tabelle, Sortierung, „Nur kommende“), gefiltert (Suchbegriff, Feld-Bedingung, Sortierung), ausgewählt
+ * (Einträge über den Link-Picker, auch aus mehreren Tabellen). Nur veröffentlichte Einträge.
  * @var array $d @var array $s @var array $vars @var bool $preview @var string $font
  */
 use Core\Data\Entries;
 use Core\Data\Tables;
 use Klxm\Newsletter\View;
 
-$t = ($ref = (string) ($d['table'] ?? '')) !== '' ? Tables::find($ref) : null;
-if (!$t || Tables::isInbox($t)) {
-    if ($preview) echo '<tr><td class="nl-pad" style="padding:16px 36px">' . View::placeholder($s, 90, __('Datentabelle wählen')) . '</td></tr>';
-    return;
+$mode = (string) ($d['mode'] ?? 'latest');
+$none = function (string $msg) use ($preview, $s): void {
+    if ($preview) echo '<tr><td class="nl-pad" style="padding:16px 36px">' . View::placeholder($s, 90, $msg) . '</td></tr>';
+};
+// Felder eines Eintrags: erstes Datums- und erstes längeres Textfeld (ohne Titel)
+$fieldsOf = function (array $t): array {
+    $date = $text = '';
+    foreach ($t['fields'] as $f) {
+        $ty = (string) ($f['type'] ?? '');
+        if ($date === '' && in_array($ty, ['date', 'datetime'], true)) $date = (string) $f['name'];
+        if ($text === '' && in_array($ty, ['textarea', 'richtext'], true) && (string) $f['name'] !== (string) $t['settings']['title_field']) $text = (string) $f['name'];
+    }
+    return [$date, $text];
+};
+$rows = [];   // [Tabelle, Eintrag]
+if ($mode === 'pick') {
+    foreach ((array) ($d['picks'] ?? []) as $p) {
+        if (!is_array($p) || !preg_match('~^entry:([a-z][a-z0-9_]{0,40}):(\d+)$~', (string) ($p['entry'] ?? ''), $m)) continue;
+        $pt = Tables::find($m[1]);
+        if (!$pt || Tables::isInbox($pt)) continue;
+        $e = Entries::find($pt, (int) $m[2]);
+        if ($e && ($e['status'] ?? 'published') === 'published') $rows[] = [$pt, $e];
+    }
+    if (!$rows) { $none(__('Einträge auswählen')); return; }
+} else {
+    $t = ($ref = (string) ($d['table'] ?? '')) !== '' ? Tables::find($ref) : null;
+    if (!$t || Tables::isInbox($t)) { $none(__('Datentabelle wählen')); return; }
+    [$dateField] = $fieldsOf($t);
+    $names = array_column($t['fields'], 'name');
+    $o = ['status' => 'published', 'limit' => max(1, min(12, (int) ($d['count'] ?? 3) ?: 3))];
+    $sort = (string) ($d['sort'] ?? '');
+    if ($sort !== '' && str_starts_with($sort, $t['handle'] . '.')) { $o['sort'] = substr($sort, strlen($t['handle']) + 1); $o['dir'] = ($d['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc'; }
+    if ($mode === 'filter') {
+        if (trim((string) ($d['q'] ?? '')) !== '') $o['q'] = trim((string) $d['q']);
+        $ff = (string) ($d['filter_field'] ?? '');
+        $fv = trim((string) ($d['filter_value'] ?? ''));
+        if ($ff !== '' && $fv !== '' && str_starts_with($ff, $t['handle'] . '.') && in_array($fn = substr($ff, strlen($t['handle']) + 1), $names, true)) {
+            if (mb_strtolower($fv) === 'heute' || mb_strtolower($fv) === 'today') $fv = date('Y-m-d');
+            $op = in_array($d['filter_op'] ?? 'contains', ['contains', '=', '!=', '>=', '<='], true) ? (string) $d['filter_op'] : 'contains';
+            $o['where'] = [[$fn, $op, $fv]];
+        }
+    } elseif (!empty($d['upcoming']) && $dateField !== '') {
+        $o += ['where' => [[$dateField, '>=', date('Y-m-d')]], 'sort' => $dateField, 'dir' => 'asc'];
+    }
+    try { foreach (Entries::query($t, $o) as $e) $rows[] = [$t, $e]; } catch (\Throwable) {}
+    if (!$rows) { $none(__('Keine passenden Einträge')); return; }
 }
-$dateField = '';
-$textField = '';
-foreach ($t['fields'] as $f) {
-    $ty = (string) ($f['type'] ?? '');
-    if ($dateField === '' && in_array($ty, ['date', 'datetime'], true)) $dateField = (string) $f['name'];
-    if ($textField === '' && in_array($ty, ['textarea', 'richtext'], true) && (string) $f['name'] !== (string) $t['settings']['title_field']) $textField = (string) $f['name'];
-}
-$o = ['status' => 'published', 'limit' => max(1, min(12, (int) ($d['count'] ?? 3) ?: 3))];
-if (!empty($d['upcoming']) && $dateField !== '') $o += ['where' => [[$dateField, '>=', date('Y-m-d')]], 'sort' => $dateField, 'dir' => 'asc'];
-try { $rows = Entries::query($t, $o); } catch (\Throwable) { $rows = []; }
-if (!$rows) {
-    if ($preview) echo '<tr><td class="nl-pad" style="padding:16px 36px">' . View::placeholder($s, 90, __('Keine passenden Einträge')) . '</td></tr>';
-    return;
-}
-$imgField = Tables::imageField($t);
 $layout = (string) ($d['layout'] ?? 'list');
 $items = [];
-foreach ($rows as $e) {
+foreach ($rows as [$t, $e]) {
+    [$dateField, $textField] = $fieldsOf($t);
+    $imgField = Tables::imageField($t);
     $u = Entries::url($t, $e);
     $items[] = ['title' => Entries::title($t, $e), 'href' => $u !== null ? abs_url($u) : '', 'img' => $imgField !== '' ? View::image((int) ($e[$imgField] ?? 0), 600) : null,
         'date' => $dateField !== '' && !empty($e[$dateField]) ? fmt()->date((string) $e[$dateField], 'long') : '',

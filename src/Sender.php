@@ -24,19 +24,27 @@ final class Sender
     public static function send(array $messages): array
     {
         if (!$messages) return [];
-        $mode = Newsletter::mode();
         $live = environment() === 'production' && !Mailer::testRedirect() && !app()->config->get('mail_dump');
-        if ($mode === 'mailjet_api' && $live) return self::viaApi($messages);
+        // je Konto (Verteiler mit eigenem Absender) der passende Versandweg; Ergebnis in der Reihenfolge der Nachrichten
+        $groups = [];
+        foreach ($messages as $i => $m) $groups[Newsletter::accountFor((string) ($m['via'] ?? ''))['id']][] = $i;
         $out = [];
         try {
-            foreach ($messages as $m) $out[] = self::viaMailer($m, $mode);
+            foreach ($groups as $accId => $idx) {
+                $acc = Newsletter::accountFor((string) $accId);
+                $mode = Newsletter::modeFor($acc);
+                $part = array_map(fn($i) => $messages[$i], $idx);
+                $res = $mode === 'mailjet_api' && $live ? self::viaApi($part, $acc) : array_map(fn($m) => self::viaMailer($m, $mode, (string) $acc['id']), $part);
+                foreach ($idx as $k => $i) $out[$i] = $res[$k];
+            }
         } finally {
             Mailer::closeTransports();
         }
-        return $out;
+        ksort($out);
+        return array_values($out);
     }
 
-    private static function viaMailer(array $m, string $mode): array
+    private static function viaMailer(array $m, string $mode, string $accId): array
     {
         $headers = $m['headers'];
         if ($mode === 'mailjet_smtp') {
@@ -47,8 +55,8 @@ final class Sender
             $headers['X-Mailjet-TrackClick'] = $track ? '1' : '0';
         }
         $o = ['purpose' => Newsletter::PURPOSE, 'html' => $m['html'], 'headers' => $headers, 'message_id' => $m['message_id'], 'keep_alive' => true];
-        if (($m['via'] ?? '') !== '') $o['via'] = $m['via'];   // eigener Absender des Verteilers
-        if ($m['return_path'] !== '') $o['return_path'] = $m['return_path'];
+        $o['via'] = $accId;   // Konto des Newsletters bzw. eigener Absender des Verteilers
+        if ($m['return_path'] !== '' && $mode === 'smtp') $o['return_path'] = $m['return_path'];
         $err = Mailer::send($m['subject'], $m['text'], [$m['to']], $o);
         if ($err === null) return ['ok' => true, 'id' => '', 'error' => '', 'outcome' => Mailer::$outcome, 'result' => null];
         [$smtp, $status] = Classifier::codes($err);
@@ -63,19 +71,14 @@ final class Sender
         return ['ok' => false, 'id' => '', 'error' => mb_substr($err, 0, 400), 'outcome' => 'failed', 'result' => $result];
     }
 
-    private static function viaApi(array $messages): array
+    private static function viaApi(array $messages, array $acc): array
     {
-        $route = \Core\Mail\Accounts::route(Newsletter::PURPOSE);
-        $accOf = function (array $m) use ($route): array {
-            $via = ($m['via'] ?? '') !== '' ? \Core\Mail\Accounts::find((string) $m['via']) : null;
-            return $via && filter_var($via['from'], FILTER_VALIDATE_EMAIL) ? $via : $route;
-        };
-        $api = Newsletter::mailjet();
+        $api = Newsletter::mailjet($acc);
         $out = [];
         foreach (array_chunk($messages, Api::BATCH) as $chunk) {
-            $payload = array_map(fn($m) => ($acc = $accOf($m)) ? ['from' => $acc['from'], 'from_name' => (string) ($acc['from_name'] ?? ''), 'reply_to' => (string) ($acc['reply_to'] ?? ''),
+            $payload = array_map(fn($m) => ['from' => $acc['from'], 'from_name' => (string) ($acc['from_name'] ?? ''), 'reply_to' => (string) ($acc['reply_to'] ?? ''),
                 'to' => $m['to'], 'to_name' => $m['to_name'], 'subject' => $m['subject'], 'text' => $m['text'], 'html' => $m['html'],
-                'custom_id' => $m['custom_id'], 'headers' => array_diff_key($m['headers'], ['Precedence' => 1])] : [], $chunk);
+                'custom_id' => $m['custom_id'], 'headers' => array_diff_key($m['headers'], ['Precedence' => 1])], $chunk);
             try {
                 $res = $api->send($payload, (bool) Newsletter::get('mailjet_sandbox', false), (bool) Newsletter::get('mailjet_track', false));
             } catch (\Throwable $e) {
