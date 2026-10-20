@@ -99,6 +99,12 @@ final class Blocks
                 ['name' => 'width', 'label' => __('Breite (px)'), 'type' => 'number', 'min' => 40, 'max' => 560, 'width' => 'half', 'default' => 160],
                 ['name' => 'align', 'label' => __('Ausrichtung'), 'type' => 'select', 'width' => 'half', 'options' => ['left' => __('links'), 'center' => __('mittig'), 'right' => __('rechts')]],
                 ['name' => 'link', 'label' => __('Link'), 'type' => 'link', 'help' => __('Leer = Startseite der Website.')],
+                ['name' => 'title', 'label' => __('Titel'), 'type' => 'text', 'max' => 120,
+                    'help' => __('Optional, z. B. „Newsletter · {date}“. Platzhalter: {subject} (Betreff), {date} (Datum der Ausgabe), {site} (Name der Website).')],
+                ['name' => 'subtitle', 'label' => __('Unterzeile'), 'type' => 'text', 'max' => 160],
+                ['name' => 'title_pos', 'label' => __('Titel steht'), 'type' => 'select', 'width' => 'half',
+                    'options' => ['right' => __('rechts neben dem Logo'), 'left' => __('links, Logo rechts'), 'below' => __('unter dem Logo'), 'above' => __('über dem Logo')]],
+                ['name' => 'title_size', 'label' => __('Größe des Titels'), 'type' => 'select', 'width' => 'half', 'options' => ['m' => __('mittel'), 's' => __('klein'), 'l' => __('groß')]],
             ]],
             'links' => ['label' => __('Linkleiste'), 'icon' => 'list', 'fields' => [
                 ['name' => 'items', 'label' => __('Links'), 'type' => 'repeater', 'item_label' => __('Link'), 'title_field' => 'label', 'max_items' => 6, 'fields' => [

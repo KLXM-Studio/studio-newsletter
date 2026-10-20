@@ -20,7 +20,7 @@ final class Message
     {
         $list = Repo::primaryList(Repo::campaignLists($c));
         $unsub = (int) ($sub['id'] ?? 0) > 0 ? Newsletter::unsubscribeUrl($sub, (int) $c['id']) : absolute_url(Newsletter::BASE . '/abmelden');
-        $vars = self::vars($sub) + ['unsubscribe' => $unsub, 'webversion' => (int) ($c['id'] ?? 0) ? Newsletter::webUrl($c) : ''];
+        $vars = self::vars($sub) + ['unsubscribe' => $unsub, 'webversion' => (int) ($c['id'] ?? 0) ? Newsletter::webUrl($c) : '', 'date' => self::issueDate($c)];
         $subject = Template::fill((string) $c['subject'], $vars);
         $html = self::html($c, $vars, $list, ['subject' => $subject, 'unsubscribe' => $unsub, 'webversion' => $vars['webversion'], 'test' => $test]);
         return self::envelope($subject, $html, (int) $c['id'], $sub, $unsub) + ['via' => (string) ($list['account'] ?? '')];
@@ -33,7 +33,8 @@ final class Message
     public static function html(array $c, array $vars, ?array $list = null, array $o = []): string
     {
         $s = self::applyList(is_array($o['design'] ?? null) ? $o['design'] : Design::forCampaign($c)['s'], $list);
-        $vars += ['unsubscribe' => (string) ($o['unsubscribe'] ?? ''), 'webversion' => (string) ($o['webversion'] ?? '')];
+        $vars += ['unsubscribe' => (string) ($o['unsubscribe'] ?? ''), 'webversion' => (string) ($o['webversion'] ?? ''), 'date' => self::issueDate($c)];
+        $vars += ['subject' => Template::fill((string) $c['subject'], $vars)];
         $content = Blocks::render(Blocks::of($c), $s, $vars, !empty($o['preview']));
         return self::layout([
             'subject' => (string) ($o['subject'] ?? Template::fill((string) $c['subject'], $vars)),
@@ -68,6 +69,13 @@ final class Message
     public static function web(array $c): string
     {
         return self::html($c, self::vars([]) + ['unsubscribe' => '', 'webversion' => ''], Repo::primaryList(Repo::campaignLists($c)));
+    }
+
+    /** Datum der Ausgabe: Versand bzw. Termin, sonst heute – lang („20. Oktober 2026“) */
+    public static function issueDate(array $c): string
+    {
+        $when = (string) ($c['started_at'] ?? '') ?: (string) ($c['scheduled_at'] ?? '') ?: date('Y-m-d');
+        return fmt()->date($when, 'long');
     }
 
     /** Platzhalter-Werte */
@@ -113,7 +121,8 @@ final class Message
     {
         $footer = trim((string) ($list['footer'] ?? ''));
         $footer = $footer !== '' ? $footer : trim((string) Newsletter::get('footer', ''));
-        $vars += ['site' => self::siteName(), 'footer' => $footer, 'unsubscribe' => (string) ($v['unsubscribe'] ?? ''), 'webversion' => (string) ($v['webversion'] ?? '')];
+        $vars += ['site' => self::siteName(), 'footer' => $footer, 'unsubscribe' => (string) ($v['unsubscribe'] ?? ''), 'webversion' => (string) ($v['webversion'] ?? ''),
+            'subject' => (string) ($v['subject'] ?? ''), 'date' => fmt()->date(date('Y-m-d'), 'long')];
         $vars['footer'] = $footer;
         $head = Design::headerBlocks($s);
         $foot = Design::footerBlocks($s);

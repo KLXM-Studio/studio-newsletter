@@ -553,4 +553,13 @@ return [
     'normal' => 'normal',
     'ohne' => 'none',
     'zarter Akzent' => 'soft accent',
+    'Titel' => 'Title',
+    'Optional, z. B. „Newsletter · {date}“. Platzhalter: {subject} (Betreff), {date} (Datum der Ausgabe), {site} (Name der Website).' => 'Optional, e.g. “Newsletter · {date}”. Placeholders: {subject} (subject), {date} (issue date), {site} (website name).',
+    'Unterzeile' => 'Subtitle',
+    'Titel steht' => 'Title position',
+    'rechts neben dem Logo' => 'right of the logo',
+    'links, Logo rechts' => 'left, logo right',
+    'unter dem Logo' => 'below the logo',
+    'über dem Logo' => 'above the logo',
+    'Größe des Titels' => 'Title size',
 ];

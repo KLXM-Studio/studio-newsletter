@@ -5,6 +5,7 @@
 - Kopf und Fuß jedes Designs aus Bausteinen (wie CleverReach/Mailjet): neue Bausteine Logo, Linkleiste, Social Media, Fußtext mit Abmeldelink, Abstand.
 - Gestaltung je Baustein: Hintergrund (Fläche, zarter Akzent, Akzent, dunkel, eigene Farbe) und Abstand; auf dunklem Grund helle Schrift, Knöpfe umgekehrt.
 - Abmeldelink ist Pflicht: fehlt er in Kopf und Fuß, wird er angehängt.
+- Baustein „Logo“ mit Titel und Unterzeile (rechts/links daneben, darunter, darüber); Platzhalter {subject}, {date} (Datum der Ausgabe), {site}.
 - Vorschau: Klick auf einen Baustein öffnet ihn im Editor; Bausteine per Ziehen ordnen; ein Scrollbereich (Mausrad über der Mail scrollt die Vorschau, Rahmen passt seine Höhe laufend an).
 
 ## 0.3.0 – 2026-10-20
