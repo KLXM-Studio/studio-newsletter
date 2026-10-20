@@ -24,7 +24,7 @@ $previewBar = function (string $src = '') use ($base): void { ?>
       <button type="button" class="adm-btn adm-btn--ghost" data-nl-dark aria-pressed="false"><?= icon('moon') ?> <?= e(__('Dunkel')) ?></button>
       <span class="nl-preview__state adm-muted" data-nl-state aria-live="polite"></span>
     </div>
-    <div class="nl-preview__stage"><iframe class="nl-preview__frame" data-nl-frame title="<?= e(__('Vorschau der E-Mail')) ?>"<?= $src !== '' ? ' src="' . e(url($src)) . '"' : '' ?>></iframe></div>
+    <div class="nl-preview__stage"><div class="nl-preview__box"><iframe class="nl-preview__frame" data-nl-frame title="<?= e(__('Vorschau der E-Mail')) ?>"<?= $src !== '' ? ' src="' . e(url($src)) . '"' : '' ?>></iframe></div></div>
   </div>
 <?php };
 ?>

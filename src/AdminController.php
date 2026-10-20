@@ -250,6 +250,17 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             'issues' => Design::contrastIssues($values ? Design::settings(['settings' => json_encode($values)]) : $d['s']), 'tab' => 'designs', 'title' => $d['name']], $status);
     }
 
+    /** Neues Design auf Grundlage eines vorhandenen – danach direkt im Editor */
+    public function newDesign(Request $r): Response
+    {
+        $this->guard($r);
+        $base = Design::find((int) ($r->post['from'] ?? 0)) ?? (Design::all()[0] ?? null);
+        $name = trim((string) ($r->post['name'] ?? ''));
+        if ($name === '') return $this->to('/admin/newsletter/designs', 'error', __('Bitte einen Namen für das Design eingeben.'));
+        $id = Design::save(0, $name, $base['s'] ?? Design::DEFAULTS);
+        return $this->to('/admin/newsletter/designs/' . $id, 'success', __('Design „{name}“ angelegt – jetzt Logo, Farben und Schrift anpassen.', ['name' => $name]));
+    }
+
     private static function designInput(Request $r): array
     {
         [$v] = Fields::sanitize(Design::fields(), (array) ($r->post['f'] ?? []));

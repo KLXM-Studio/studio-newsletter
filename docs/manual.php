@@ -24,7 +24,7 @@
     <li><b>Neue Ausgabe</b> beginnt mit einer <b>Vorlage</b>: Klassisch, Magazin, Veranstaltungen, Kurzinfo, Einladung, Rückblick – oder leer. Jede bringt Bausteine mit Beispieltexten und ein passendes Design mit. Eigene Ausgaben lassen sich mit <b>„Als Vorlage speichern“</b> wiederverwenden.</li>
     <li>Der Inhalt besteht aus <b>Bausteinen</b> wie im Block-Editor: Aufmacher, Überschrift, Text, Bild, Bild und Text, Spalten, Einträge aus Datentabelle (z. B. die nächsten Termine – automatisch aktuell), Knopf, Zitat, Trenner. Hinzufügen, mit ↑ ↓ ordnen, aufklappen zum Bearbeiten.</li>
     <li>Rechts zeigt die <b>Live-Vorschau</b> die fertige Mail – umschaltbar auf Handy und Dunkelmodus. Leere Bilder erscheinen dort als Platzhalter, in der Mail fehlen sie einfach.</li>
-    <li><b>Designs</b> (Newsletter → Designs) legen Kopf mit Logo, Schrift, Farben, Ecken und Knopfform fest. Sechs Designs sind dabei (Klar, Warm, Natur, Verein, Kontrast, Minimal); anpassen oder als Kopie weiterentwickeln. Zu wenig Kontrast meldet der Editor. Jeder Verteiler wählt sein Design, eine Ausgabe kann ein anderes nehmen.</li>
+    <li><b>Designs</b> (Newsletter → Designs) legen Kopf mit Logo, Schrift, Farben, Ecken und Knopfform fest. Sechs Designs sind dabei (Klar, Warm, Natur, Verein, Kontrast, Minimal). Ein eigenes Design legen Sie unter <b>Designs → Neues Design</b> an: Name eingeben, Grundlage wählen – danach Logo, Farben, Schrift und Formen im Editor anpassen, die Vorschau rechts zeigt jede Änderung. Zu wenig Kontrast meldet der Editor. Jeder Verteiler wählt sein Design, eine Ausgabe kann ein anderes nehmen.</li>
   </ul>
   <h3>Eine Ausgabe versenden</h3>
   <ol>

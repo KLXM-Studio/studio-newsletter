@@ -107,6 +107,7 @@ return [
             $r->post('/admin/newsletter/vorlagen/{id}/loeschen', [$c, 'deleteTemplate'], $p);
             $r->get('/admin/newsletter/designs', [$c, 'designs'], $p);
             $r->post('/admin/newsletter/designs/live', [$c, 'designLive'], $p);
+            $r->post('/admin/newsletter/designs/neu', [$c, 'newDesign'], $p);
             $r->get('/admin/newsletter/designs/{id}', [$c, 'design'], $p);
             $r->post('/admin/newsletter/designs/{id}', [$c, 'saveDesign'], $p);
             $r->get('/admin/newsletter/designs/{id}/vorschau', [$c, 'designPreview'], $p);

@@ -6,6 +6,23 @@
  */
 (() => {
   const d = document;
+  // Desktop: Rahmen in echter Mail-Breite (680 px, sonst greift die Handy-Darstellung der Mail) und auf die Spalte verkleinert;
+  // Handy: 390 px, nur verkleinert, wenn die Spalte schmaler ist
+  const scale = frame => {
+    const stage = frame.closest('.nl-preview__stage'), prev = frame.closest('.nl-preview');
+    if (!stage) return;
+    const w = prev?.classList.contains('is-mobile') ? 390 : 680;
+    let h = 900;
+    try { h = Math.max(480, frame.contentDocument.documentElement.scrollHeight); } catch {}
+    const avail = stage.clientWidth - 24;
+    const k = Math.min(1, avail / w);
+    frame.style.width = w + 'px';
+    frame.style.height = h + 'px';
+    frame.style.transform = k < 1 ? `scale(${k})` : '';
+    const box = frame.parentElement;
+    if (box && box.classList.contains('nl-preview__box')) { box.style.width = Math.round(w * k) + 'px'; box.style.height = Math.round(h * k) + 'px'; }
+  };
+  addEventListener('resize', () => d.querySelectorAll('.nl-preview__frame').forEach(scale));
   const t = (s, p) => (window.CMSAdmin?.t ? window.CMSAdmin.t(s, p) : s);
   d.querySelectorAll('form[data-nl-live]').forEach(form => {
     const frame = form.querySelector('[data-nl-frame]');
@@ -35,7 +52,7 @@
       }
     };
     const soon = () => { clearTimeout(timer); timer = setTimeout(run, 500); };
-    const fit = () => { try { frame.style.height = Math.max(480, frame.contentDocument.documentElement.scrollHeight) + 'px'; } catch {} };
+    const fit = () => scale(frame);
     form.addEventListener('input', soon);
     form.addEventListener('change', soon);
     form.addEventListener('click', e => { if (e.target.closest('[data-blk]')) soon(); });
@@ -44,19 +61,20 @@
     form.querySelectorAll('[data-nl-device]').forEach(b => b.addEventListener('click', () => {
       form.querySelectorAll('[data-nl-device]').forEach(x => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
       frame.closest('.nl-preview')?.classList.toggle('is-mobile', b.dataset.nlDevice === 'mobile');
-      setTimeout(fit, 50);
+      fit();
     }));
     darkBtn?.addEventListener('click', () => { dark = !dark; darkBtn.classList.toggle('is-on', dark); darkBtn.setAttribute('aria-pressed', String(dark)); last = ''; run(); });
     run();
   });
   // Bericht/gesperrte Ausgabe: Vorschau mit src – Höhe anpassen
-  d.querySelectorAll('.nl-preview__frame[src]').forEach(f => f.addEventListener('load', () => { try { f.style.height = Math.max(480, f.contentDocument.documentElement.scrollHeight) + 'px'; } catch {} }));
+  d.querySelectorAll('.nl-preview__frame[src]').forEach(f => { f.addEventListener('load', () => scale(f)); scale(f); });
   d.querySelectorAll('.nl-preview__bar').forEach(bar => {
     if (bar.closest('form[data-nl-live]')) return;
     const prev = bar.closest('.nl-preview');
     bar.querySelectorAll('[data-nl-device]').forEach(b => b.addEventListener('click', () => {
       bar.querySelectorAll('[data-nl-device]').forEach(x => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
       prev.classList.toggle('is-mobile', b.dataset.nlDevice === 'mobile');
+      prev.querySelectorAll('.nl-preview__frame').forEach(scale);
     }));
     bar.querySelector('[data-nl-dark]')?.remove();
   });

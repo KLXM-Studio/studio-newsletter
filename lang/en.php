@@ -507,4 +507,10 @@ return [
     'Überschriften auf Inhaltsfläche' => 'Headings on content area',
     '„Ein starkes Zitat aus einem der Beiträge.“' => '“A strong quote from one of the articles.”',
     '„Eine Stimme aus dem Publikum oder dem Team.“' => '“A voice from the audience or the team.”',
+    'Neues Design' => 'New design',
+    'Grundlage' => 'Based on',
+    'z. B. Vereins-News' => 'e.g. Club news',
+    'Bitte einen Namen für das Design eingeben.' => 'Please enter a name for the design.',
+    'Design „{name}“ angelegt – jetzt Logo, Farben und Schrift anpassen.' => 'Design “{name}” created – now adjust logo, colours and font.',
+    'Das neue Design übernimmt alle Einstellungen der Grundlage; danach passen Sie Logo, Farben, Schrift und Formen im Editor an.' => 'The new design takes over all settings of its base; then adjust logo, colours, font and shapes in the editor.',
 ];

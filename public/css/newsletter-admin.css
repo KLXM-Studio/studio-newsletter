@@ -20,8 +20,8 @@
 .nl-preview__bar .is-on{outline:2px solid currentColor;outline-offset:-2px}
 .nl-preview__state{margin-left:auto;font-size:.8125rem}
 .nl-preview__stage{display:flex;justify-content:center;padding:12px;border-radius:10px;background:color-mix(in srgb,currentColor 6%,transparent);overflow:auto;max-height:calc(100vh - 7rem)}
-.nl-preview__frame{display:block;width:100%;min-height:480px;border:0;border-radius:6px;background:#fff;transition:width .2s ease}
-.nl-preview.is-mobile .nl-preview__frame{width:390px;max-width:100%}
+.nl-preview__box{position:relative;overflow:hidden;flex:none}
+.nl-preview__frame{display:block;width:680px;min-height:480px;border:0;border-radius:6px;background:#fff;transform-origin:0 0}
 .nl-savetpl{display:inline-block}
 .nl-savetpl summary{list-style:none;cursor:pointer}
 .nl-savetpl summary::-webkit-details-marker{display:none}
