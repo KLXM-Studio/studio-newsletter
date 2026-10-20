@@ -501,7 +501,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         foreach (['batch' => 200, 'imap_port' => 993, 'soft_threshold' => 3, 'soft_window' => 60, 'retention' => 365, 'imap_folder' => 'INBOX', 'imap_after' => 'seen', 'imap_security' => 'ssl'] as $k => $d) {
             if (($out[$k] ?? null) === null || $out[$k] === '') $out[$k] = $d;
         }
-        if (array_key_exists('imap_verify', $out) && $out['imap_verify'] === null) $out['imap_verify'] = true;
+        if ($out['imap_verify'] === null) $out['imap_verify'] = true;
         foreach (['consent_text', 'doi_subject', 'doi_text'] as $k) if ((string) ($out[$k] ?? '') === '') $out[$k] = Newsletter::text($k);
         return $out;
     }
