@@ -32,22 +32,22 @@ final class Templates
         return [
             'klassisch' => ['name' => __('Klassisch'), 'description' => __('Aufmacher mit Bild, Text und Knopf – für fast alles.'), 'design' => 'klar',
                 'subject' => __('Neuigkeiten aus {site}'), 'blocks' => [
-                ['type' => 'hero', 'data' => ['kicker' => __('Newsletter'), 'title' => __('Das Wichtigste dieses Monats'), 'text' => __('Ein bis zwei Sätze, worum es in dieser Ausgabe geht – kurz und neugierig machend.'), 'button' => __('Mehr erfahren'), 'link' => '/']],
+                ['type' => 'hero', 'data' => ['kicker' => __('Newsletter'), 'title' => __('Das Wichtigste dieses Monats'), 'text' => $p(__('Ein bis zwei Sätze, worum es in dieser Ausgabe geht – kurz und neugierig machend.')), 'button' => __('Mehr erfahren'), 'link' => '/']],
                 ['type' => 'text', 'data' => ['text' => $p(__('Hallo {name},'), __('hier steht der Haupttext. Schreiben Sie, was neu ist, was ansteht und was Ihre Leserinnen und Leser davon haben.'))]],
                 ['type' => 'divider', 'data' => ['style' => 'line']],
                 ['type' => 'image_text', 'data' => ['title' => __('Ein weiteres Thema'), 'text' => $p(__('Kurzer Text zum Thema mit einem Link zur ausführlichen Seite.')), 'button' => __('Weiterlesen'), 'link' => '/', 'position' => 'left']],
             ]],
             'magazin' => ['name' => __('Magazin'), 'description' => __('Aufmacher und drei Themen-Kacheln – für Ausgaben mit mehreren Beiträgen.'), 'design' => 'klar',
                 'subject' => __('{site}: Die Themen dieser Ausgabe'), 'blocks' => [
-                ['type' => 'hero', 'data' => ['kicker' => __('Titelthema'), 'title' => __('Die große Geschichte dieser Ausgabe'), 'text' => __('Der Anreißer zum wichtigsten Beitrag.'), 'button' => __('Zum Beitrag'), 'link' => '/']],
+                ['type' => 'hero', 'data' => ['kicker' => __('Titelthema'), 'title' => __('Die große Geschichte dieser Ausgabe'), 'text' => $p(__('Der Anreißer zum wichtigsten Beitrag.')), 'button' => __('Zum Beitrag'), 'link' => '/']],
                 ['type' => 'heading', 'data' => ['text' => __('Außerdem in dieser Ausgabe'), 'size' => 'm']],
                 ['type' => 'columns', 'data' => ['items' => [
-                    ['title' => __('Thema eins'), 'text' => __('Zwei Zeilen Anreißer.'), 'button' => __('Lesen'), 'link' => '/'],
-                    ['title' => __('Thema zwei'), 'text' => __('Zwei Zeilen Anreißer.'), 'button' => __('Lesen'), 'link' => '/'],
-                    ['title' => __('Thema drei'), 'text' => __('Zwei Zeilen Anreißer.'), 'button' => __('Lesen'), 'link' => '/'],
+                    ['title' => __('Thema eins'), 'text' => $p(__('Zwei Zeilen Anreißer.')), 'button' => __('Lesen'), 'link' => '/'],
+                    ['title' => __('Thema zwei'), 'text' => $p(__('Zwei Zeilen Anreißer.')), 'button' => __('Lesen'), 'link' => '/'],
+                    ['title' => __('Thema drei'), 'text' => $p(__('Zwei Zeilen Anreißer.')), 'button' => __('Lesen'), 'link' => '/'],
                 ]]],
                 ['type' => 'divider', 'data' => ['style' => 'accent']],
-                ['type' => 'quote', 'data' => ['text' => __('Ein starkes Zitat aus einem der Beiträge.'), 'author' => __('Name, Funktion')]],
+                ['type' => 'quote', 'data' => ['text' => $p(__('„Ein starkes Zitat aus einem der Beiträge.“')), 'author' => __('Name, Funktion')]],
             ]],
             'veranstaltungen' => ['name' => __('Veranstaltungen'), 'description' => __('Die nächsten Termine automatisch aus einer Datentabelle.'), 'design' => 'natur',
                 'subject' => __('Die nächsten Termine'), 'blocks' => [
@@ -72,10 +72,10 @@ final class Templates
             ]],
             'rueckblick' => ['name' => __('Rückblick'), 'description' => __('Bilder und Stimmen eines Jahres oder einer Veranstaltung.'), 'design' => 'verein',
                 'subject' => __('Unser Rückblick'), 'blocks' => [
-                ['type' => 'hero', 'data' => ['kicker' => __('Rückblick'), 'title' => __('Was für ein Jahr!'), 'text' => __('Danke an alle, die dabei waren.')]],
+                ['type' => 'hero', 'data' => ['kicker' => __('Rückblick'), 'title' => __('Was für ein Jahr!'), 'text' => $p(__('Danke an alle, die dabei waren.'))]],
                 ['type' => 'image_text', 'data' => ['title' => __('Höhepunkt eins'), 'text' => $p(__('Was passiert ist und warum es besonders war.')), 'position' => 'left']],
                 ['type' => 'image_text', 'data' => ['title' => __('Höhepunkt zwei'), 'text' => $p(__('Noch ein schöner Moment.')), 'position' => 'right']],
-                ['type' => 'quote', 'data' => ['text' => __('Eine Stimme aus dem Publikum oder dem Team.'), 'author' => __('Name')]],
+                ['type' => 'quote', 'data' => ['text' => $p(__('„Eine Stimme aus dem Publikum oder dem Team.“')), 'author' => __('Name')]],
                 ['type' => 'button', 'data' => ['label' => __('Alle Bilder ansehen'), 'link' => '/', 'align' => 'center']],
             ]],
         ];

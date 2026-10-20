@@ -25,7 +25,7 @@ final class Blocks
                 ['name' => 'image', 'label' => __('Bild'), 'type' => 'media'],
                 ['name' => 'kicker', 'label' => __('Dachzeile'), 'type' => 'text', 'max' => 80],
                 ['name' => 'title', 'label' => __('Überschrift'), 'type' => 'text', 'max' => 140],
-                ['name' => 'text', 'label' => __('Text'), 'type' => 'textarea', 'rows' => 3, 'max' => 600],
+                ['name' => 'text', 'label' => __('Text'), 'type' => 'richtext'],
                 ['name' => 'button', 'label' => __('Knopf: Beschriftung'), 'type' => 'text', 'max' => 60, 'width' => 'half'],
                 ['name' => 'link', 'label' => __('Knopf: Ziel'), 'type' => 'link', 'width' => 'half'],
             ]],
@@ -57,7 +57,7 @@ final class Blocks
                 ['name' => 'items', 'label' => __('Spalten'), 'type' => 'repeater', 'item_label' => __('Spalte'), 'title_field' => 'title', 'max_items' => 3, 'fields' => [
                     ['name' => 'image', 'label' => __('Bild'), 'type' => 'media'],
                     ['name' => 'title', 'label' => __('Überschrift'), 'type' => 'text', 'max' => 120],
-                    ['name' => 'text', 'label' => __('Text'), 'type' => 'textarea', 'rows' => 3, 'max' => 400],
+                    ['name' => 'text', 'label' => __('Text'), 'type' => 'richtext'],
                     ['name' => 'button', 'label' => __('Link: Beschriftung'), 'type' => 'text', 'max' => 40, 'width' => 'half'],
                     ['name' => 'link', 'label' => __('Link: Ziel'), 'type' => 'link', 'width' => 'half'],
                 ], 'help' => __('2 oder 3 Spalten – auf dem Handy untereinander.')],
@@ -76,7 +76,7 @@ final class Blocks
                 ['name' => 'style', 'label' => __('Stil'), 'type' => 'select', 'width' => 'half', 'options' => ['filled' => __('gefüllt'), 'outline' => __('Umriss')]],
             ]],
             'quote' => ['label' => __('Zitat'), 'icon' => 'quotes', 'fields' => [
-                ['name' => 'text', 'label' => __('Zitat'), 'type' => 'textarea', 'rows' => 3, 'max' => 600],
+                ['name' => 'text', 'label' => __('Zitat'), 'type' => 'richtext'],
                 ['name' => 'author', 'label' => __('Von'), 'type' => 'text', 'max' => 120],
             ]],
             'divider' => ['label' => __('Trenner'), 'icon' => 'minus', 'fields' => [

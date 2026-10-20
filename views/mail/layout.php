@@ -28,6 +28,7 @@ $darkRules = '[style*="color:' . $s['accent'] . '"]{color:' . $accDark . '!impor
 <style>
   body{margin:0;padding:0;background:<?= e($s['bg']) ?>}
   .nl-body p{margin:0 0 16px}
+  .nl-body p:last-child{margin-bottom:0}
   .nl-body ul,.nl-body ol{margin:0 0 16px;padding-left:22px}
   .nl-body a{color:<?= e($s['accent']) ?>}
   .nl-body h2,.nl-body h3{margin:22px 0 10px;line-height:1.25;color:<?= e($s['heading']) ?>}

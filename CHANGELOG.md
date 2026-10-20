@@ -7,6 +7,7 @@
 - Designs: sechs mitgelieferte (Klar, Warm, Natur, Verein, Kontrast, Minimal), Editor mit Live-Vorschau und Kontrastprüfung; je Verteiler und je Ausgabe wählbar.
 - Vorlagen: Klassisch, Magazin, Veranstaltungen, Kurzinfo, Einladung, Rückblick; eigene Ausgaben als Vorlage speichern.
 - Ältere Ausgaben (Bild, Inhalt, Knopf) werden als Bausteine übernommen.
+- Rich-Text auch im Aufmacher, in den Spalten und im Zitat (fett, kursiv, Links, Listen).
 
 ## 0.2.0 – 2026-10-20
 

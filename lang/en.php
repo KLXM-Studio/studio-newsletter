@@ -505,4 +505,6 @@ return [
     '{what}: Kontrast {r}:1 (mindestens 4,5:1)' => '{what}: contrast {r}:1 (at least 4.5:1)',
     'Überschriften' => 'Headings',
     'Überschriften auf Inhaltsfläche' => 'Headings on content area',
+    '„Ein starkes Zitat aus einem der Beiträge.“' => '“A strong quote from one of the articles.”',
+    '„Eine Stimme aus dem Publikum oder dem Team.“' => '“A voice from the audience or the team.”',
 ];
