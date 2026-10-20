@@ -18,10 +18,21 @@ use Klxm\Newsletter\Engine\Address;
  */
 final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 {
-    private function guard(Request $r): array
+    /** Anmeldung + Recht: $manage = nur „Newsletter verwalten“, sonst genügt auch „Newsletter schreiben und versenden“ */
+    private function guard(Request $r, bool $manage = false): array
     {
         if (!Newsletter::on()) throw new HttpException(404);
-        return $this->auth($r, Newsletter::PERM);
+        $u = $this->auth($r);
+        if (!($manage ? Access::manager() : Access::any())) throw new HttpException(403, __('Für diese Aktion fehlt Ihrer Rolle die Berechtigung.'));
+        return $u;
+    }
+
+    /** Ausgabe laden und Zugriff prüfen (Redaktion: nur Ausgaben an ihre Verteiler) */
+    private function campaignFor(string $id): array
+    {
+        $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        if (!Access::campaign($c)) throw new HttpException(403, __('Diese Ausgabe geht an Verteiler, die Ihnen nicht zugewiesen sind.'));
+        return $c;
     }
 
     private function show(string $view, array $vars = [], int $status = 200): Response
@@ -29,7 +40,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         $vars += ['errors' => [], 'tab' => $view];
         $vars['flash'] = app()->session->takeFlash();
         $vars['user'] = app()->auth->user();
-        $vars['counts'] = Repo::counts();
+        $vars['counts'] = Repo::counts(Access::manager() ? null : Access::lists());
         $dir = dirname(__DIR__) . '/views/admin/';
         $GLOBALS['nl_shell'] = false;
         $content = Theme::capture($dir . '_nav.php', $vars) . Theme::capture($dir . $view . '.php', $vars)
@@ -49,14 +60,15 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function index(Request $r): Response
     {
         $this->guard($r);
-        return $this->show('campaigns', ['campaigns' => Repo::campaigns(), 'title' => __('Newsletter')]);
+        return $this->show('campaigns', ['campaigns' => array_values(array_filter(Repo::campaigns(), fn($c) => Access::campaign($c))), 'title' => __('Newsletter')]);
     }
 
     /** Angaben einer Ausgabe neben den Bausteinen */
     public static function campaignFields(): array
     {
         $lists = [];
-        foreach (Repo::lists() as $l) $lists[(string) $l['id']] = $l['name'] . ' (' . (int) $l['active'] . ')';
+        $mine = Access::lists();
+        foreach (Repo::lists() as $l) if (in_array((int) $l['id'], $mine, true)) $lists[(string) $l['id']] = $l['name'] . ' (' . (int) $l['active'] . ')';
         // Schlüssel „d{id}“: rein numerische Schlüssel ab 0 hielte Core\Fields für eine Liste ohne Schlüssel
         $designs = ['d0' => __('wie beim Verteiler')];
         foreach (Design::all() as $d) $designs['d' . (int) $d['id']] = $d['name'];
@@ -84,16 +96,18 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         $key = (string) ($r->post['vorlage'] ?? '');
         $t = $key === 'leer' ? ['subject' => '', 'blocks' => [['type' => 'text', 'data' => []]], 'design_id' => 0] : Templates::find($key);
         if (!$t) return $this->to('/admin/newsletter/neu', 'error', __('Vorlage nicht gefunden.'));
+        $mine = Access::lists();
+        if (!$mine) return $this->to('/admin/newsletter', 'error', __('Ihnen ist noch kein Verteiler zugewiesen – bitte die Verwaltung fragen (Newsletter → Verteiler → „Wer darf ihn bedienen?“).'));
+        $first = in_array(Repo::defaultList(), $mine, true) ? Repo::defaultList() : $mine[0];
         $id = Repo::saveCampaign(0, ['subject' => (string) ($t['subject'] ?: __('Neue Ausgabe')), 'blocks' => json_encode($t['blocks'], JSON_UNESCAPED_UNICODE),
-            'design_id' => (int) $t['design_id'], 'lists' => (string) Repo::defaultList()]);
+            'design_id' => (int) $t['design_id'], 'lists' => (string) $first]);
         return Response::redirect(url('/admin/newsletter/' . $id));
     }
 
     public function edit(Request $r, string $id, array $values = [], array $blocks = [], array $errors = [], int $status = 200): Response
     {
         $this->guard($r);
-        $c = ctype_digit($id) ? Repo::campaign((int) $id) : null;
-        if (!$c) throw new HttpException(404);
+        $c = $this->campaignFor($id);
         if (!$values) $values = ['subject' => $c['subject'], 'preheader' => $c['preheader'], 'lists' => array_map('strval', Repo::campaignLists($c)), 'design_id' => 'd' . (int) $c['design_id']];
         $editable = in_array($c['status'], ['draft', 'scheduled'], true);
         return $this->show('campaign', ['campaign' => $c, 'values' => $values, 'blocks' => $blocks ?: Blocks::of($c), 'errors' => $errors, 'editable' => $editable,
@@ -112,8 +126,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function save(Request $r, string $id): Response
     {
         $this->guard($r);
-        $c = ctype_digit($id) ? Repo::campaign((int) $id) : null;
-        if (!$c) throw new HttpException(404);
+        $c = $this->campaignFor($id);
         if (!in_array($c['status'], ['draft', 'scheduled'], true)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Versendete Ausgaben lassen sich nicht mehr ändern – „Kopie anlegen“ nutzen.'));
         [$v, $blocks, $errors] = self::input($r);
         if (!$blocks) $errors['blocks'] = __('Bitte mindestens einen Baustein hinzufügen.');
@@ -151,7 +164,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function deleteTemplate(Request $r, string $id): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         Templates::delete((int) $id);
         return $this->to('/admin/newsletter/neu', 'success', __('Vorlage gelöscht.'));
     }
@@ -167,7 +180,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function test(Request $r, string $id): Response
     {
         $u = $this->guard($r);
-        $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        $c = $this->campaignFor($id);
         $to = array_values(array_filter(array_map('trim', preg_split('~[,;\s]+~', (string) ($r->post['test_to'] ?? '')) ?: []), fn($e) => Address::valid($e)));
         if (!$to) $to = [(string) ($u['email'] ?? '')];
         $to = array_slice(array_filter($to), 0, 5);
@@ -181,7 +194,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function send(Request $r, string $id): Response
     {
         $this->guard($r);
-        $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        $c = $this->campaignFor($id);
         if (!Blocks::of($c)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Die Ausgabe hat noch keinen Inhalt.'));
         if (!Campaigns::audience(Repo::campaignLists($c))) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Die gewählten Verteiler haben keine aktiven Empfänger.'));
         if ($c['status'] === 'draft' && !\Core\Mail\Accounts::ready(Newsletter::account())) {
@@ -197,6 +210,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function pause(Request $r, string $id): Response
     {
         $this->guard($r);
+        $this->campaignFor($id);
         Campaigns::pause((int) $id);
         return $this->to('/admin/newsletter/' . (int) $id, 'success', __('Versand angehalten.'));
     }
@@ -204,6 +218,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function cancel(Request $r, string $id): Response
     {
         $this->guard($r);
+        $this->campaignFor($id);
         Campaigns::cancel((int) $id);
         return $this->to('/admin/newsletter/' . (int) $id, 'success', __('Versand abgebrochen.'));
     }
@@ -211,7 +226,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function copy(Request $r, string $id): Response
     {
         $this->guard($r);
-        $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        $c = $this->campaignFor($id);
         $nid = Repo::saveCampaign(0, ['subject' => $c['subject'], 'preheader' => $c['preheader'], 'blocks' => json_encode(Blocks::of($c), JSON_UNESCAPED_UNICODE),
             'design_id' => (int) $c['design_id'], 'lists' => $c['lists']]);
         return $this->to('/admin/newsletter/' . $nid, 'success', __('Kopie angelegt.'));
@@ -220,7 +235,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function delete(Request $r, string $id): Response
     {
         $this->guard($r);
-        $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        $c = $this->campaignFor($id);
         if (in_array($c['status'], ['sending', 'scheduled'], true)) return $this->to('/admin/newsletter/' . (int) $id, 'error', __('Bitte den Versand zuerst anhalten.'));
         Repo::deleteCampaign((int) $id);
         return $this->to('/admin/newsletter', 'success', __('Ausgabe gelöscht.'));
@@ -229,7 +244,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     public function preview(Request $r, string $id): Response
     {
         $this->guard($r);
-        $c = Repo::campaign((int) $id) ?? throw new HttpException(404);
+        $c = $this->campaignFor($id);
         return $this->mail(Message::html($c, Message::vars(['name' => 'Erika Musterfrau', 'email' => 'erika@example.org']) + ['unsubscribe' => '#', 'webversion' => '#'],
             Repo::primaryList(Repo::campaignLists($c)), ['preview' => in_array($c['status'], ['draft', 'scheduled'], true), 'unsubscribe' => '#', 'webversion' => '#']));
     }
@@ -238,13 +253,13 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function designs(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         return $this->show('designs', ['designs' => Design::all(), 'tab' => 'designs', 'title' => __('Designs')]);
     }
 
     public function design(Request $r, string $id, array $values = [], string $name = '', int $status = 200): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $d = Design::find((int) $id) ?? throw new HttpException(404);
         $s = $values ? Design::settings(['settings' => json_encode($values)]) : $d['s'];
         return $this->show('design', ['design' => $d, 'name' => $name ?: $d['name'], 'values' => $values ?: $d['s'] + ['radius' => (string) $d['s']['radius']],
@@ -255,7 +270,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     /** Neues Design auf Grundlage eines vorhandenen – danach direkt im Editor */
     public function newDesign(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $base = Design::find((int) ($r->post['from'] ?? 0)) ?? (Design::all()[0] ?? null);
         $name = trim((string) ($r->post['name'] ?? ''));
         if ($name === '') return $this->to('/admin/newsletter/designs', 'error', __('Bitte einen Namen für das Design eingeben.'));
@@ -276,7 +291,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function saveDesign(Request $r, string $id): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $d = Design::find((int) $id) ?? throw new HttpException(404);
         $s = self::designInput($r);
         $act = (string) ($r->post['_action'] ?? 'save');
@@ -297,7 +312,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     /** Live-Vorschau des Design-Editors mit der Vorlage „Klassisch“ */
     public function designLive(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $s = self::designInput($r);
         $t = Templates::builtin()['klassisch'];
         $c = ['id' => 0, 'subject' => (string) $t['subject'], 'preheader' => '', 'blocks' => $t['blocks'], 'design_id' => 0, 'lists' => ''];
@@ -307,7 +322,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function designPreview(Request $r, string $id): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $d = Design::find((int) $id) ?? throw new HttpException(404);
         $t = Templates::builtin()['klassisch'];
         $c = ['id' => 0, 'subject' => (string) $t['subject'], 'preheader' => '', 'blocks' => $t['blocks'], 'design_id' => (int) $d['id'], 'lists' => ''];
@@ -321,14 +336,19 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         $this->guard($r);
         $f = ['status' => (string) ($r->query['status'] ?? ''), 'list' => (int) ($r->query['list'] ?? 0), 'q' => (string) ($r->query['q'] ?? '')];
         $page = max(1, (int) ($r->query['seite'] ?? 1));
-        return $this->show('subscribers', ['filter' => $f, 'page' => $page, 'result' => Repo::subscribers($f, $page), 'lists' => Repo::lists(), 'tab' => 'subscribers', 'title' => __('Empfänger')]);
+        $mine = Access::lists();
+        if (!Access::manager()) $f['only'] = $mine;   // Redaktion: nur Empfänger ihrer Verteiler
+        return $this->show('subscribers', ['filter' => $f, 'page' => $page, 'result' => Repo::subscribers($f, $page),
+            'lists' => array_values(array_filter(Repo::lists(), fn($l) => in_array((int) $l['id'], $mine, true))), 'manager' => Access::manager(), 'tab' => 'subscribers', 'title' => __('Empfänger')]);
     }
 
     public function subscriber(Request $r, string $id): Response
     {
         $this->guard($r);
         $s = Repo::find((int) $id) ?? throw new HttpException(404);
-        return $this->show('subscriber', ['sub' => $s, 'lists' => Repo::lists(), 'mine' => Repo::listIds((int) $id), 'events' => Repo::events(['subscriber' => (int) $id], 100),
+        if (!Access::subscriber($s)) throw new HttpException(403);
+        $mineL = Access::lists();
+        return $this->show('subscriber', ['sub' => $s, 'lists' => array_values(array_filter(Repo::lists(), fn($l) => in_array((int) $l['id'], $mineL, true))), 'manager' => Access::manager(), 'mine' => Repo::listIds((int) $id), 'events' => Repo::events(['subscriber' => (int) $id], 100),
             'suppressed' => Repo::suppressed((string) $s['email']), 'tab' => 'subscribers', 'title' => $s['email']]);
     }
 
@@ -336,7 +356,14 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     {
         $this->guard($r);
         $s = Repo::find((int) $id) ?? throw new HttpException(404);
+        if (!Access::subscriber($s)) throw new HttpException(403);
         $act = (string) ($r->post['_action'] ?? 'save');
+        if (in_array($act, ['delete', 'unblock', 'block'], true) && !Access::manager()) throw new HttpException(403, __('Löschen und Sperren darf nur, wer den Newsletter verwaltet.'));
+        if ($act === 'block') {
+            $reason = mb_substr(trim((string) ($r->post['reason'] ?? '')), 0, 200);
+            Repo::block((int) $id, $reason, (string) (app()->auth->user()['name'] ?? app()->auth->user()['email'] ?? ''));
+            return $this->to('/admin/newsletter/empfaenger/' . (int) $id, 'success', __('Gesperrt – die Adresse erhält keine Ausgaben mehr und kann sich nicht neu anmelden, bis die Sperre aufgehoben wird.'));
+        }
         if ($act === 'delete') {
             Repo::deleteSubscriber((int) $id);
             return $this->to('/admin/newsletter/empfaenger', 'success', __('Empfänger gelöscht. Sperrgründe (Rückläufer, Beschwerde) bleiben anonym in der Sperrliste.'));
@@ -357,7 +384,11 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             return $this->to('/admin/newsletter/empfaenger/' . (int) $id, 'success', __('Abgemeldet.'));
         }
         Repo::update((int) $id, ['name' => mb_substr(trim((string) ($r->post['name'] ?? '')), 0, 120), 'note' => mb_substr((string) ($r->post['note'] ?? ''), 0, 2000)]);
-        Repo::setLists((int) $id, (array) ($r->post['lists'] ?? []), true);
+        // nur die eigenen Verteiler ändern – Zuordnungen zu anderen bleiben (Redaktion sieht sie nicht)
+        $mine = Access::lists();
+        $want = array_values(array_intersect(array_map('intval', (array) ($r->post['lists'] ?? [])), $mine));
+        $keep = array_values(array_diff(Repo::listIds((int) $id), $mine));
+        Repo::setLists((int) $id, array_merge($keep, $want), true);
         return $this->to('/admin/newsletter/empfaenger/' . (int) $id, 'success', __('Gespeichert.'));
     }
 
@@ -367,6 +398,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         $this->guard($r);
         $rows = preg_split('~\R~', (string) ($r->post['rows'] ?? '')) ?: [];
         $list = (int) ($r->post['list'] ?? 0) ?: Repo::defaultList();
+        if (!in_array($list, Access::lists(), true)) throw new HttpException(403, __('Dieser Verteiler ist Ihnen nicht zugewiesen.'));
         $proof = !empty($r->post['proof']);
         $proofText = trim((string) ($r->post['proof_text'] ?? ''));
         if ($proof && $proofText === '') return $this->to('/admin/newsletter/empfaenger', 'error', __('Bitte angeben, woher die Einwilligungen stammen (Nachweis).'));
@@ -388,10 +420,30 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             . ($proof || !$n['new'] ? '' : ' ' . __('Die neuen Empfänger haben eine Bestätigungsmail erhalten und sind erst danach aktiv.')));
     }
 
+    /** Adressen von Hand sperren (auch nicht eingetragene) – nur Verwaltung */
+    public function blockMany(Request $r): Response
+    {
+        $u = $this->guard($r, true);
+        $reason = mb_substr(trim((string) ($r->post['reason'] ?? '')), 0, 200);
+        $n = ['new' => 0, 'bad' => 0];
+        foreach (array_slice(preg_split('~[\s,;]+~', (string) ($r->post['emails'] ?? '')) ?: [], 0, 5000) as $e) {
+            $e = Address::normalize($e);
+            if ($e === '') continue;
+            if (!Address::valid($e)) { $n['bad']++; continue; }
+            if ($s = Repo::byEmail($e)) Repo::block((int) $s['id'], $reason, (string) ($u['name'] ?? $u['email'] ?? ''));
+            else Repo::suppressHash(Address::hash($e, Newsletter::key()), 'manual');
+            $n['new']++;
+        }
+        return $this->to('/admin/newsletter/empfaenger', 'success', __('{new} Adressen gesperrt, {bad} ungültig.', $n));
+    }
+
     public function export(Request $r): Response
     {
         $this->guard($r);
-        $rows = app()->db->fetchAll('SELECT email, name, status, confirmed_at, created_at FROM newsletter_subscribers WHERE status = \'active\' ORDER BY email');
+        $mine = Access::lists();
+        $in = $mine ? implode(',', $mine) : '0';
+        $rows = app()->db->fetchAll('SELECT email, name, status, confirmed_at, created_at FROM newsletter_subscribers s WHERE status = \'active\''
+            . (Access::manager() ? '' : " AND s.id IN (SELECT subscriber_id FROM newsletter_subscriber_lists WHERE list_id IN ($in))") . ' ORDER BY email');
         return Response::csv('newsletter-empfaenger-' . date('Y-m-d') . '.csv', ['E-Mail', 'Name', 'Status', 'Bestätigt', 'Angelegt'], array_map('array_values', $rows));
     }
 
@@ -399,13 +451,13 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function lists(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         return $this->show('lists', ['lists' => Repo::lists(), 'tab' => 'lists', 'title' => __('Verteiler')]);
     }
 
     public function saveList(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $id = (int) ($r->post['id'] ?? 0);
         if (($r->post['_action'] ?? '') === 'delete' && $id) {
             if (count(Repo::lists()) < 2) return $this->to('/admin/newsletter/verteiler', 'error', __('Der letzte Verteiler kann nicht gelöscht werden.'));
@@ -421,7 +473,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function events(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $type = (string) ($r->query['typ'] ?? '');
         return $this->show('events', ['events' => Repo::events(['type' => $type], 300), 'type' => $type, 'tab' => 'events', 'title' => __('Protokoll')]);
     }
@@ -508,7 +560,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function settings(Request $r, array $values = [], array $errors = [], int $status = 200): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         return $this->show('settings', ['values' => $values ?: self::settingsValues(), 'errors' => $errors, 'tab' => 'settings', 'title' => __('Einstellungen'),
             'hook' => Newsletter::hookUrl(), 'dns' => Health::dns(true), 'imapLast' => json_decode((string) Newsletter::get('imap_last', ''), true) ?: [],
             'hookLast' => (int) Newsletter::get('hook_last', 0), 'account' => Newsletter::account()], $status);
@@ -516,7 +568,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function saveSettings(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         [$v, $errors] = Fields::sanitize(self::settingsFields(), (array) ($r->post['f'] ?? []));
         $doi = trim((string) ($v['doi_text'] ?? ''));
         if ($doi !== '' && !str_contains($doi, '{link}')) $errors['doi_text'] = __('Der Text braucht den Platzhalter {link}.');
@@ -546,7 +598,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
 
     public function action(Request $r): Response
     {
-        $this->guard($r);
+        $this->guard($r, true);
         $act = (string) ($r->post['_action'] ?? '');
         try {
             switch ($act) {

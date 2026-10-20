@@ -41,3 +41,15 @@ $q = fn(array $o) => url('/admin/newsletter/empfaenger') . '?' . http_build_quer
     <button class="adm-btn"><?= e(__('Hinzufügen')) ?></button>
   </form>
 </section>
+<?php if (!empty($manager)): ?>
+<section class="adm-card">
+  <h2><?= e(__('Adressen sperren')) ?></h2>
+  <form method="post" action="<?= e(url('/admin/newsletter/empfaenger/sperren')) ?>" data-confirm="<?= e(__('Alle eingetragenen Adressen sperren?')) ?>"><?= csrf_field() ?>
+    <div class="f"><label for="nl-block"><?= e(__('Adressen – eine je Zeile')) ?></label>
+      <textarea id="nl-block" name="emails" rows="4" placeholder="info@example.org"></textarea></div>
+    <div class="f"><label for="nl-block-reason"><?= e(__('Grund (optional)')) ?></label><input id="nl-block-reason" name="reason" type="text" maxlength="200"></div>
+    <p class="adm-muted"><?= e(__('Gesperrte Adressen erhalten keine Ausgaben mehr; Import und Anmeldeformular tragen sie nicht wieder ein. Auch Adressen, die noch nicht in der Liste stehen, lassen sich vorab sperren.')) ?></p>
+    <button class="adm-btn adm-btn--danger"><?= icon('lock') ?> <?= e(__('Sperren')) ?></button>
+  </form>
+</section>
+<?php endif; ?>

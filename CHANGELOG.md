@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 – 2026-10-20
+
+- Rechte: neues Recht „Ausgaben schreiben und versenden“ (`newsletter.send`) für die Redaktion – nur Ausgaben und Empfänger der zugewiesenen Verteiler. Zuweisung je Verteiler an Rollen und/oder Personen („Wer darf diesen Verteiler bedienen?“). Einstellungen, Designs, Verteiler, Protokoll, Löschen und Sperren bleiben bei `newsletter.manage`.
+- Von Hand sperren: beim Empfänger mit Grund (Vermerk mit Datum und Person, Sperrliste mit Grund „manual“) und mehrere Adressen auf einmal, auch vorab für noch unbekannte Adressen.
+- Kopfzahlen der Newsletter-Verwaltung zählen für die Redaktion nur ihre Verteiler.
+
 ## 0.5.0 – 2026-10-20
 
 - Einstellungen: E-Mail-Konto direkt wählen; Versandweg ergibt sich aus dem Konto (Mailjet API/SMTP → Webhook, sonst Bounce-Postfach). Mailjet-Zugang und Bounce-Postfach (Rücklaufadresse = Absender, IMAP-Server smtp.→imap., Benutzer, Passwort) kommen aus dem Konto – eigene Werte nur noch zum Überschreiben.

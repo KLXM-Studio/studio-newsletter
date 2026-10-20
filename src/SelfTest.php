@@ -248,6 +248,11 @@ final class SelfTest
             self::eq('Angebot des Blocks signiert', [Newsletter::verifyOffer($offer), Newsletter::verifyOffer($ids['list'] . substr($offer, strpos($offer, '.')))], [[$ids['list2']], []]);
             Repo::update($s2 = (int) Repo::upsert(['email' => 'x' . $email, 'status' => 'active', 'source' => 'admin'])['id'], []);
             Repo::setLists($s2, [$ids['list'], $ids['list2']]);
+            // Rechte: Redaktion sieht nur Empfänger ihrer Verteiler; Zuweisung bleibt bei anderen Speichervorgängen erhalten
+            app()->db->update('newsletter_lists', ['editors' => 'r:selbsttest'], 'id = ?', [$ids['list2']]);
+            Repo::saveList($ids['list2'], ['name' => 'Selbsttest Presse', 'public' => false, 'footer' => 'Pressestelle Musterstadt', 'color' => '#aa3300', 'own_color' => 1]);
+            self::eq('Verteiler-Zuweisung bleibt beim Speichern ohne Formular', Access::editors((array) Repo::list($ids['list2'])), ['r:selbsttest']);
+            self::eq('Filter „nur diese Verteiler“', [array_column(Repo::subscribers(['only' => [$ids['list2']]])['rows'], 'id'), Repo::subscribers(['only' => []])['total']], [[$s2], 0]);
             $c2 = (array) Repo::campaign(Repo::saveCampaign($ids['camp'], ['lists' => (string) $ids['list2']]));
             $m2 = Message::campaign($c2, (array) Repo::find($s2));
             self::eq('Mail trägt Fußzeile und Farbe des Verteilers, Abmeldelink mit Ausgabe', [str_contains($m2['html'], 'Pressestelle Musterstadt'), str_contains($m2['html'], '#aa3300'), str_contains($m2['headers']['List-Unsubscribe'], '?a=' . $ids['camp'])], [true, true, true]);
@@ -255,6 +260,8 @@ final class SelfTest
             self::eq('Ein-Klick: nur vom Verteiler der Ausgabe abgemeldet', [Repo::find($s2)['status'] ?? '', Repo::listIds($s2)], ['active', [$ids['list']]]);
             Signup::unsubscribe((array) Repo::find($s2), 'link', [$ids['list']]);
             self::eq('letzter Verteiler abbestellt → abgemeldet', Repo::find($s2)['status'] ?? '', 'unsubscribed');
+            Repo::block($s2, 'Widerspruch per Telefon', 'Selbsttest');
+            self::eq('Von Hand gesperrt: Status, Grund, Sperrliste, Vermerk', [Repo::find($s2)['status'] ?? '', Repo::find($s2)['bounce_reason'] ?? '', Repo::suppressed('x' . $email), str_contains((string) (Repo::find($s2)['note'] ?? ''), 'Widerspruch per Telefon')], ['bounced', 'manual', 'manual', true]);
             Repo::deleteSubscriber($ids['sub']);
             $ids['sub'] = 0;
             self::eq('Nach dem Löschen bleibt nur die Prüfsumme gesperrt', [Repo::byEmail($email), Repo::suppressed($email)], [null, 'hard']);
@@ -265,9 +272,9 @@ final class SelfTest
             if ($ids['camp']) Repo::deleteCampaign($ids['camp']);
             if ($ids['list']) Repo::deleteList($ids['list']);
             if ($ids['list2']) Repo::deleteList($ids['list2']);
-            app()->db->query('DELETE FROM newsletter_suppressions WHERE email_hash = ?', [Address::hash($email, $key)]);
+            app()->db->query('DELETE FROM newsletter_suppressions WHERE email_hash IN (?, ?)', [Address::hash($email, $key), Address::hash('x' . $email, $key)]);
             if ($x = Repo::byEmail('x' . $email)) Repo::deleteSubscriber((int) $x['id']);
-            app()->db->query('DELETE FROM newsletter_events WHERE email LIKE ? OR (subscriber_id = 0 AND diagnostic LIKE ?)', ['nl-selftest-%', '%User unknown%']);
+            app()->db->query('DELETE FROM newsletter_events WHERE email LIKE ? OR (subscriber_id = 0 AND diagnostic LIKE ?)', ['%nl-selftest-%', '%User unknown%']);
         }
     }
 

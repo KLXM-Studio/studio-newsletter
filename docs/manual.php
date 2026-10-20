@@ -13,6 +13,12 @@
     <li>Im Block <b>„Newsletter-Anmeldung“</b> wählen Sie unter „Angebotene Verteiler“, welche Newsletter er anbietet – so bekommt jede Seite ihren eigenen. Leer = alle öffentlichen.</li>
     <li><b>Abmelden</b>: Die Abmeldeseite zeigt die eigenen Newsletter mit Häkchen (vorausgewählt: die der gerade erhaltenen Ausgabe) und „Alle abbestellen“. Die Ein-Klick-Abmeldung im E-Mail-Programm meldet nur vom Newsletter dieser Ausgabe ab. Wer keinen Newsletter mehr hat, gilt als abgemeldet.</li>
   </ul>
+  <h3>Wer darf was? (Rechte)</h3>
+  <ul>
+    <li><b>Newsletter verwalten</b> (Recht unter Benutzer → Rollen): alles – Einstellungen, Designs, Verteiler, Protokoll, alle Ausgaben und Empfänger, Sperren und Löschen.</li>
+    <li><b>Ausgaben schreiben und versenden</b>: für die Redaktion, z. B. eine Rolle „Pressestelle“. Wer nur dieses Recht hat, sieht unter Newsletter nur <b>Ausgaben</b> und <b>Empfänger</b> – und dort nur die Verteiler, die ihm zugewiesen sind. Er kann Ausgaben anlegen, testen und versenden sowie Empfänger seiner Verteiler hinzufügen und pflegen, aber nicht löschen oder sperren.</li>
+    <li><b>Zuweisen</b>: unter <b>Newsletter → Verteiler</b> bei „Wer darf diesen Verteiler bedienen?“ Rollen und/oder einzelne Personen ankreuzen. Eine Ausgabe an mehrere Verteiler darf nur bearbeiten, wem alle zugewiesen sind.</li>
+  </ul>
   <h3>Versandarten</h3>
   <ul>
     <li><b>Eigener SMTP-Server:</b> Versand über Ihr Konto. Für die Rückläufer eine <b>Rücklaufadresse</b> (z. B. bounce@news.ihre-domain.de) und deren IMAP-Zugang eintragen – die Erweiterung holt unzustellbare Mails alle 5 Minuten ab und wertet sie aus.</li>
@@ -42,6 +48,7 @@
     <li><b>Beschwerde</b> (als Spam gemeldet): sofort abgemeldet und nie wieder angeschrieben.</li>
     <li><b>Blockiert</b> (der empfangende Server lehnt Ihren Absender ab, z. B. Spamverdacht): Der Empfänger bleibt aktiv – das Problem liegt beim Absender. Unter Einstellungen → <b>Zustellbarkeit</b> prüfen Sie SPF und DMARC Ihrer Domain.</li>
     <li>Abwesenheitsnotizen werden erkannt und ignoriert.</li>
+    <li><b>Von Hand sperren</b>: beim Empfänger unter „Sperren“ mit Grund (z. B. Widerspruch per Telefon) – Grund, Datum und wer gesperrt hat, stehen danach in der Notiz. Mehrere Adressen auf einmal sperren Sie unter <b>Empfänger → Adressen sperren</b>; das geht auch für Adressen, die (noch) nicht in der Liste stehen. Nur für die Newsletter-Verwaltung.</li>
     <li>Gesperrte Adressen bleiben auch nach dem Löschen eines Empfängers als anonyme Prüfsumme auf der Sperrliste – ein späterer Import trägt sie nicht wieder ein. <b>Sperre aufheben</b> nur, wenn der Grund geklärt ist; der Empfänger meldet sich dann selbst neu an.</li>
   </ul>
   <h3>Empfänger und Datenschutz</h3>

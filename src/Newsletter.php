@@ -22,6 +22,8 @@ final class Newsletter
     public const NAME = 'newsletter';
     public const FEATURE = 'newsletter';
     public const PERM = 'newsletter.manage';
+    /** Redaktion: Ausgaben und Empfänger nur der zugewiesenen Verteiler (Access) */
+    public const PERM_SEND = 'newsletter.send';
     public const PURPOSE = 'ext:newsletter.send';
     public const BASE = '/newsletter';
     public const MODES = ['smtp', 'mailjet_smtp', 'mailjet_api'];

@@ -42,6 +42,7 @@ final class Repo implements Store
                 ->column('footer', 'text')
                 ->column('color', 'string', ['length' => 7, 'default' => ''])
                 ->column('design_id', 'int', ['default' => 0])
+                ->column('editors', 'text')
                 ->column('sort', 'int', ['default' => 0])
                 ->column('created_at', 'datetime'),
             'newsletter_subscribers' => fn(Table $t) => $t->id()
@@ -148,7 +149,10 @@ final class Repo implements Store
         $data = ['name' => mb_substr(trim((string) $v['name']), 0, 120), 'description' => mb_substr(trim((string) ($v['description'] ?? '')), 0, 191), 'public' => !empty($v['public']) ? 1 : 0,
             'account' => $acc !== '' && \Core\Mail\Accounts::find($acc) ? $acc : '', 'footer' => mb_substr(trim((string) ($v['footer'] ?? '')), 0, 600),
             'color' => preg_match('~^#[0-9a-f]{6}$~i', $color) && !empty($v['own_color']) ? strtolower($color) : '',
-            'design_id' => array_key_exists('design_id', $v) ? max(0, (int) $v['design_id']) : (int) (self::list($id)['design_id'] ?? 0)];
+            'design_id' => array_key_exists('design_id', $v) ? max(0, (int) $v['design_id']) : (int) (self::list($id)['design_id'] ?? 0),
+            'editors' => isset($v['_editors'])   // nur das Verteiler-Formular setzt die Zuweisung, andere Aufrufe behalten sie
+                ? implode(',', array_values(array_intersect(array_map('strval', (array) ($v['editors'] ?? [])), array_keys(Access::choices()))))
+                : (string) (self::list($id)['editors'] ?? '')];
         if ($id > 0) { self::db()->update('newsletter_lists', $data, 'id = :wid', ['wid' => $id]); return $id; }
         $data['sort'] = (int) self::db()->fetchValue('SELECT COALESCE(MAX(sort), 0) + 1 FROM newsletter_lists');
         return self::db()->insert('newsletter_lists', $data + ['created_at' => self::now()]);
@@ -235,6 +239,11 @@ final class Repo implements Store
         $p = [];
         if (($f['status'] ?? '') !== '' && in_array($f['status'], self::STATUSES, true)) { $where[] = 's.status = :st'; $p['st'] = $f['status']; }
         if ((int) ($f['list'] ?? 0) > 0) { $where[] = 's.id IN (SELECT subscriber_id FROM newsletter_subscriber_lists WHERE list_id = :li)'; $p['li'] = (int) $f['list']; }
+        if (isset($f['only'])) {   // Redaktion: nur Empfänger dieser Verteiler (auch unbestätigte, die dort angemeldet werden wollen)
+            $in = implode(',', array_map('intval', (array) $f['only'])) ?: '0';
+            $or = implode(' OR ', array_map(fn($i) => "(',' || s.pending_lists || ',') LIKE '%," . (int) $i . ",%'", (array) $f['only'])) ?: '0';
+            $where[] = "(s.id IN (SELECT subscriber_id FROM newsletter_subscriber_lists WHERE list_id IN ($in)) OR $or)";
+        }
         if (trim((string) ($f['q'] ?? '')) !== '') { $where[] = '(s.email LIKE :q OR s.name LIKE :q)'; $p['q'] = '%' . str_replace(['%', '_'], ['\%', '\_'], trim((string) $f['q'])) . '%'; }
         $w = implode(' AND ', $where);
         $total = (int) self::db()->fetchValue("SELECT COUNT(*) FROM newsletter_subscribers s WHERE $w", $p);
@@ -243,14 +252,27 @@ final class Repo implements Store
     }
 
     /** @return array<string, int> */
-    public static function counts(): array
+    public static function counts(?array $only = null): array
     {
         $out = array_fill_keys(self::STATUSES, 0);
-        foreach (self::db()->fetchAll('SELECT status, COUNT(*) n FROM newsletter_subscribers GROUP BY status') as $r) $out[$r['status']] = (int) $r['n'];
+        $in = $only === null ? '' : ' WHERE id IN (SELECT subscriber_id FROM newsletter_subscriber_lists WHERE list_id IN (' . (implode(',', array_map('intval', $only)) ?: '0') . '))';
+        foreach (self::db()->fetchAll('SELECT status, COUNT(*) n FROM newsletter_subscribers' . $in . ' GROUP BY status') as $r) $out[$r['status']] = (int) $r['n'];
         return $out;
     }
 
     // ------------------------------------------------------------------ Sperrliste
+
+    /** Von Hand sperren: Status gesperrt (Grund „manual“), Sperrliste, Vermerk mit Grund und Person */
+    public static function block(int $id, string $reason, string $by): void
+    {
+        $s = self::find($id);
+        if (!$s) return;
+        (new self())->updateSubscriber($id, ['status' => 'bounced', 'bounce_reason' => 'manual',
+            'note' => trim((string) $s['note'] . "\n" . date('Y-m-d') . ' ' . __('Gesperrt von {name}', ['name' => $by]) . ($reason !== '' ? ': ' . $reason : ''))]);
+        self::suppressHash((string) $s['email_hash'], 'manual');
+        self::db()->insert('newsletter_events', ['created_at' => self::now(), 'campaign_id' => 0, 'subscriber_id' => $id, 'email' => (string) $s['email'],
+            'type' => 'manual', 'diagnostic' => mb_substr(__('Von Hand gesperrt') . ($reason !== '' ? ': ' . $reason : ''), 0, 400), 'source' => 'admin']);
+    }
 
     public static function suppressed(string $email): ?string
     {

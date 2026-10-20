@@ -1,6 +1,6 @@
 <?php
 /** Protokoll der Rückläufer und Ereignisse. @var list<array> $events @var string $type */
-$typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' => __('Blockiert (Absender)'), 'complaint' => __('Beschwerde'), 'unsubscribe' => __('Abmeldung'),
+$typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' => __('Blockiert (Absender)'), 'complaint' => __('Beschwerde'), 'unsubscribe' => __('Abmeldung'), 'manual' => __('Von Hand gesperrt'),
     'auto' => __('Abwesenheit'), 'delayed' => __('Verzögert'), 'unknown' => __('Unklar')];
 ?>
 <section class="adm-card">

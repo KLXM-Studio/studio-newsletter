@@ -16,7 +16,7 @@ $href = View::href($d['link'] ?? '') ?: abs_url(url('/'));
 $site = (string) ($vars['site'] ?? '');
 $title = trim(Template::fill((string) ($d['title'] ?? ''), $vars));
 $sub = trim(Template::fill((string) ($d['subtitle'] ?? ''), $vars));
-$pos = in_array($d['title_pos'] ?? 'right', ['right', 'left', 'below', 'above'], true) ? $d['title_pos'] : 'right';
+$pos = in_array($d['title_pos'] ?? '', ['right', 'left', 'below', 'above'], true) ? (string) $d['title_pos'] : 'right';
 $size = ['s' => 15, 'm' => 19, 'l' => 26][$d['title_size'] ?? 'm'] ?? 19;
 
 $logo = '<a href="' . e($href) . '" style="text-decoration:none;color:' . e($s['heading']) . '">'

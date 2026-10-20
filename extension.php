@@ -18,6 +18,7 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
+use Klxm\Newsletter\Access;
 use Klxm\Newsletter\AdminController;
 use Klxm\Newsletter\Newsletter;
 use Klxm\Newsletter\Repo;
@@ -26,7 +27,7 @@ use Klxm\Newsletter\SiteController;
 return [
     'name' => 'newsletter',
     'label' => 'Newsletter – Anmeldung, Versand, Rückläufer',
-    'version' => '0.5.0',
+    'version' => '0.6.0',
     'requires' => '>=1.0.0',
     'description' => 'Newsletter mit Double-Opt-in, Verteilern und gedrosseltem Versand – über den eigenen SMTP-Server (Rückläufer per IMAP) oder Mailjet (SMTP oder API, Rückläufer per Webhook). Hard und Soft Bounces, Beschwerden und Sperrliste.',
     'author' => 'KLXM Crossmedia GmbH and contributors',
@@ -49,8 +50,9 @@ return [
         return $c['active'] || $c['pending'] ? __('{n} Empfänger', ['n' => $c['active']]) . ($c['pending'] ? ' · ' . __('{n} unbestätigt', ['n' => $c['pending']]) : '') : null;
     },
     'boot' => function (Core\Extension $x): void {
-        $x->feature(Newsletter::FEATURE, 'Newsletter: Anmeldung, Versand, Rückläufer', [Newsletter::PERM], false);
-        $x->permissions('Newsletter', [Newsletter::PERM => 'Ausgaben schreiben und versenden, Empfänger und Einstellungen verwalten']);
+        $x->feature(Newsletter::FEATURE, 'Newsletter: Anmeldung, Versand, Rückläufer', [Newsletter::PERM, Newsletter::PERM_SEND], false);
+        $x->permissions('Newsletter', [Newsletter::PERM => 'Newsletter verwalten (alles: Einstellungen, Designs, Verteiler, alle Ausgaben und Empfänger, Sperren)',
+            Newsletter::PERM_SEND => 'Ausgaben schreiben und versenden – nur für zugewiesene Verteiler (Newsletter → Verteiler)']);
         foreach (Repo::tables() as $name => $define) $x->table($name, $define);
         $x->mailPurpose('send', 'Newsletter versenden', 'Ausgaben und Bestätigungsmails der Newsletter-Erweiterung');
         $x->mailTransport('mailjet', 'Mailjet (API)', fn(array $acc) => Klxm\Newsletter\MailjetTransport::fromAccount($acc));
@@ -77,13 +79,13 @@ return [
         $x->docs('technical', ['newsletter' => ['title' => 'Newsletter (Erweiterung): Versand und Rückläufer', 'part' => 3, 'after' => 'live', 'file' => __DIR__ . '/docs/technical.php']]);
         $x->health(fn(): array => Klxm\Newsletter\Health::checks());
         $x->adminAssets(fn(string $view) => $view === 'newsletter' ? ['css/newsletter-admin.css', 'js/newsletter-admin.js'] : []);
-        $x->adminPage(['href' => '/admin/newsletter', 'label' => 'Newsletter', 'kind' => 'content', 'icon' => 'paper-plane-tilt', 'perm' => Newsletter::PERM,
+        $x->adminPage(['href' => '/admin/newsletter', 'label' => 'Newsletter', 'kind' => 'content', 'icon' => 'paper-plane-tilt', 'visible' => fn() => Access::any(),
             'feature' => Newsletter::FEATURE, 'description' => 'Ausgaben schreiben und versenden, Empfänger und Rückläufer']);
         $x->dashboard(function (array $user): array {
             if (!Newsletter::on()) return [];
             $c = Repo::counts();
             return ['tiles' => [['key' => 'newsletter', 'label' => __('Newsletter'), 'value' => fmt()->number($c['active']), 'text' => __('aktive Empfänger'), 'href' => '/admin/newsletter/empfaenger']]];
-        }, Newsletter::PERM);
+        }, Newsletter::PERM);   // Kennzahl der ganzen Website nur für die Verwaltung
 
         $x->routes(function (Core\Http\Router $r): void {
             $s = SiteController::class;
@@ -98,7 +100,8 @@ return [
             $r->post($b . '/hook/mailjet/{token}', [$s, 'mailjet']);
 
             $c = AdminController::class;
-            $p = Newsletter::PERM;
+            // Recht prüft der Controller genauer (Verwaltung bzw. Redaktion mit zugewiesenen Verteilern); hier genügt eines von beiden
+            $p = ['perm' => [Newsletter::PERM, Newsletter::PERM_SEND]];
             $r->get('/admin/newsletter', [$c, 'index'], $p);
             $r->get('/admin/newsletter/neu', [$c, 'create'], $p);
             $r->post('/admin/newsletter/neu', [$c, 'createFrom'], $p);
@@ -113,6 +116,7 @@ return [
             $r->get('/admin/newsletter/designs/{id}/vorschau', [$c, 'designPreview'], $p);
             $r->get('/admin/newsletter/empfaenger', [$c, 'subscribers'], $p);
             $r->post('/admin/newsletter/empfaenger/import', [$c, 'import'], $p);
+            $r->post('/admin/newsletter/empfaenger/sperren', [$c, 'blockMany'], $p);
             $r->get('/admin/newsletter/empfaenger/export.csv', [$c, 'export'], $p);
             $r->get('/admin/newsletter/empfaenger/{id}', [$c, 'subscriber'], $p);
             $r->post('/admin/newsletter/empfaenger/{id}', [$c, 'saveSubscriber'], $p);

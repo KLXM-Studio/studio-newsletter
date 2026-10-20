@@ -12,7 +12,8 @@ foreach (\Core\Mail\Accounts::all() as $id => $a) {
 }
 $designs = ['0' => __('erstes Design')];
 foreach (Design::all() as $d) $designs[(string) $d['id']] = $d['name'];
-$form = function (array $l) use ($accounts, $designs): void {
+$choices = \Klxm\Newsletter\Access::choices();
+$form = function (array $l) use ($accounts, $designs, $choices): void {
     $id = (int) ($l['id'] ?? 0);
     $p = 'nl-l' . $id;
     ?>
@@ -30,6 +31,12 @@ $form = function (array $l) use ($accounts, $designs): void {
           <?php if (($l['color'] ?? '') !== ''): ?><input type="hidden" name="color" value="<?= e($l['color']) ?>"><label class="nl-inline-check"><input type="checkbox" name="own_color" value="1" checked> <?= e(__('abweichende Akzentfarbe {c} behalten', ['c' => $l['color']])) ?></label><?php endif; ?></div>
         <div class="f nl-listform__wide"><label for="<?= $p ?>-foot"><?= e(__('Absenderangaben im Fuß (optional)')) ?></label>
           <textarea id="<?= $p ?>-foot" name="footer" rows="2" maxlength="600" placeholder="<?= e(__('leer = wie in den Einstellungen')) ?>"><?= e((string) ($l['footer'] ?? '')) ?></textarea></div>
+        <fieldset class="f nl-listform__wide nl-editors"><legend><?= e(__('Wer darf diesen Verteiler bedienen?')) ?></legend>
+          <input type="hidden" name="_editors" value="1">
+          <?php $sel = \Klxm\Newsletter\Access::editors($l); foreach ($choices as $k => $label): ?>
+          <label class="nl-inline-check"><input type="checkbox" name="editors[]" value="<?= e($k) ?>"<?= in_array($k, $sel, true) ? ' checked' : '' ?>> <?= e($label) ?></label>
+          <?php endforeach; ?>
+          <p class="f-help"><?= e(__('Für Rollen und Personen mit dem Recht „Newsletter: Ausgaben schreiben und versenden“. Sie sehen nur Ausgaben und Empfänger der Verteiler, die ihnen hier zugewiesen sind. Die Newsletter-Verwaltung darf alle.')) ?></p></fieldset>
       </div>
       <div class="nl-inline">
         <label><input type="checkbox" name="public" value="1"<?= !$id || (int) ($l['public'] ?? 1) ? ' checked' : '' ?>> <?= e(__('Öffentlich (im Anmeldeformular wählbar)')) ?></label>

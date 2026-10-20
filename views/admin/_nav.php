@@ -8,6 +8,7 @@ $items = [
     'events' => ['/admin/newsletter/protokoll', __('Protokoll'), 'clipboard-text'],
     'settings' => ['/admin/newsletter/einstellungen', __('Einstellungen'), 'gear-six'],
 ];
+if (!\Klxm\Newsletter\Access::manager()) $items = array_intersect_key($items, ['campaigns' => 1, 'subscribers' => 1]);   // Redaktion: nur ihre Verteiler
 $current = ['campaign' => 'campaigns', 'subscriber' => 'subscribers', 'design' => 'designs'][$tab] ?? $tab;
 ?>
 <header class="adm-head">
