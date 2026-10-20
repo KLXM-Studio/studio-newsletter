@@ -19,9 +19,9 @@
 .nl-preview__bar{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
 .nl-preview__bar .is-on{outline:2px solid currentColor;outline-offset:-2px}
 .nl-preview__state{margin-left:auto;font-size:.8125rem}
-.nl-preview__stage{display:flex;justify-content:center;padding:12px;border-radius:10px;background:color-mix(in srgb,currentColor 6%,transparent);overflow:auto;max-height:calc(100vh - 7rem)}
+.nl-preview__stage{display:flex;justify-content:center;align-items:flex-start;padding:12px;border-radius:10px;background:color-mix(in srgb,currentColor 6%,transparent);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;max-height:calc(100vh - 7rem)}
 .nl-preview__box{position:relative;overflow:hidden;flex:none}
-.nl-preview__frame{display:block;width:680px;min-height:480px;border:0;border-radius:6px;background:#fff;transform-origin:0 0}
+.nl-preview__frame{display:block;width:680px;border:0;border-radius:6px;background:#fff;transform-origin:0 0}
 .nl-savetpl{display:inline-block}
 .nl-savetpl summary{list-style:none;cursor:pointer}
 .nl-savetpl summary::-webkit-details-marker{display:none}
@@ -40,3 +40,6 @@
 .nl-tpl__del{justify-self:start}
 .nl-swatches{display:flex;gap:.3rem}
 .nl-swatch{display:inline-block;width:1.1rem;height:1.1rem;border-radius:50%;border:1px solid color-mix(in srgb,currentColor 25%,transparent)}
+.nl-flash{outline:3px solid currentColor;outline-offset:2px;transition:outline-color .6s}
+.nl-dragging{opacity:.5}
+.nl-blocks [data-blk-item]>legend{cursor:grab}

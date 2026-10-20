@@ -246,7 +246,9 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
     {
         $this->guard($r);
         $d = Design::find((int) $id) ?? throw new HttpException(404);
+        $s = $values ? Design::settings(['settings' => json_encode($values)]) : $d['s'];
         return $this->show('design', ['design' => $d, 'name' => $name ?: $d['name'], 'values' => $values ?: $d['s'] + ['radius' => (string) $d['s']['radius']],
+            'head' => Design::headerBlocks($s), 'foot' => Design::footerBlocks($s),
             'issues' => Design::contrastIssues($values ? Design::settings(['settings' => json_encode($values)]) : $d['s']), 'tab' => 'designs', 'title' => $d['name']], $status);
     }
 
@@ -266,6 +268,9 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         [$v] = Fields::sanitize(Design::fields(), (array) ($r->post['f'] ?? []));
         $v['logo'] = (int) ($v['logo'] ?? 0);
         $v['radius'] = (int) ($v['radius'] ?? 8);
+        [$v['header_blocks']] = Blocks::sanitize($r->post['header_blocks'] ?? [], 'header_blocks');
+        [$v['footer_blocks']] = Blocks::sanitize($r->post['footer_blocks'] ?? [], 'footer_blocks');
+        $v['blocks_set'] = true;
         return Design::settings(['settings' => json_encode($v)]);
     }
 

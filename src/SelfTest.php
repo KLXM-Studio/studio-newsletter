@@ -145,6 +145,15 @@ final class SelfTest
             $html = Blocks::render($clean, Design::settings(['settings' => '{}']), ['name' => 'Erika', 'site' => 'Muster'], true);
             self::eq("Vorlage „{$t['name']}“: Bausteine gültig und dargestellt", [$err, count($clean) === count($t['blocks']), str_contains($html, '<tr>')], [[], true, true]);
         }
+        $dk = Design::settings(['settings' => '{}']);
+        [$bgc, $sd] = Blocks::surface(['_bg' => 'dark'], $dk);
+        self::eq('dunkler Hintergrund → helle Schrift (Kontrast ≥ 4,5)', \Core\Contrast::ratio($sd['text'], $bgc) >= 4.5, true);
+        [$bga, $sa] = Blocks::surface(['_bg' => 'accent'], $dk);
+        self::eq('Akzent-Hintergrund → Knopf weiß mit Grundfarbe', [$sa['accent'], $sa['button_text']], ['#ffffff', $bga]);
+        $noLegal = Design::settings(['settings' => json_encode(['blocks_set' => true, 'header_blocks' => [], 'footer_blocks' => [['type' => 'spacer', 'data' => []]]])]);
+        $mail = Message::html(['id' => 0, 'subject' => 'S', 'blocks' => [['type' => 'text', 'data' => ['text' => '<p>x</p>']]], 'design_id' => 0, 'lists' => ''],
+            ['name' => '', 'site' => 'Muster'], null, ['design' => $noLegal, 'unsubscribe' => 'https://example.org/ab/1']);
+        self::eq('Fuß ohne Abmeldelink → wird angehängt', str_contains($mail, 'https://example.org/ab/1'), true);
         $legacy = Blocks::of(['blocks' => '', 'image' => 0, 'body' => '<p>Alt</p>', 'button_label' => 'Los', 'button_link' => 'https://example.org']);
         self::eq('ältere Ausgabe (Inhalt + Knopf) als Bausteine', array_column($legacy, 'type'), ['text', 'button']);
         [$b2] = Blocks::sanitize([['type' => 'boese', 'data' => []], ['type' => 'heading', 'data' => ['text' => '<script>x</script>Hallo', 'size' => 'l']]]);

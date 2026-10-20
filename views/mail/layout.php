@@ -4,14 +4,12 @@
  * Inline-Stile für Outlook, dazu <style> für Programme, die es lesen (Gmail, Apple Mail). Keine Webfonts, keine Skripte, kein Zählpixel.
  * @var string $subject @var string $preheader @var string $content (sicheres HTML der Bausteine) @var string $unsubscribe @var string $webversion
  * @var bool $test @var string $site @var array $s Design @var string $footer @var string $lang @var bool $forceDark (Vorschau „dunkel“)
+ * @var string $headerHtml @var string $footerHtml (Bausteine des Designs) @var bool $needUnsub (Abmeldelink ergänzen)
  */
 use Klxm\Newsletter\Design;
 
 $font = Design::FONTS[$s['font']] ?? Design::FONTS['system'];
 $r = Design::radius($s);
-$logo = Design::logoUrl($s);
-$band = $s['header'] === 'band';
-$headColor = $band ? $s['header_text'] : $s['heading'];
 $forceDark = !empty($forceDark);
 $accDark = \Core\Contrast::mix($s['accent'], '#ffffff', 45);
 $darkRules = '[style*="color:' . $s['accent'] . '"]{color:' . $accDark . '!important}.nl-body a{color:' . $accDark . '!important}.nl-bg{background:#121212!important}.nl-card{background:#1e1e1e!important;border-color:#333!important}.nl-body,.nl-body p,.nl-body li,.nl-txt{color:#e6e6e6!important}'
@@ -51,21 +49,14 @@ $darkRules = '[style*="color:' . $s['accent'] . '"]{color:' . $accDark . '!impor
       <?php endif; ?>
       <tr><td class="nl-card" style="background:<?= e($s['card']) ?>;border-radius:<?= $r ?>;overflow:hidden;<?= $s['card_border'] ? 'border:1px solid rgba(0,0,0,.08);' : '' ?>">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-          <tr><td class="nl-pad" align="<?= $s['header'] === 'logo_center' ? 'center' : 'left' ?>" style="padding:22px 36px;<?= $band ? 'background:' . e($s['header_bg']) . ';' : 'border-top:4px solid ' . e($s['accent']) . ';' ?>font-family:<?= $font ?>">
-            <?php if ($logo !== '' && $s['header'] !== 'name'): ?>
-              <img src="<?= e($logo) ?>" width="<?= (int) $s['logo_width'] ?>" alt="<?= e($site) ?>" style="display:block;<?= $s['header'] === 'logo_center' ? 'margin:0 auto;' : '' ?>width:<?= (int) $s['logo_width'] ?>px;max-width:100%;height:auto;border:0">
-            <?php else: ?>
-              <span class="<?= $band ? '' : 'nl-h' ?>" style="font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:<?= e($headColor) ?>"><?= e($site) ?></span>
-            <?php endif; ?>
-          </td></tr>
+          <?= $headerHtml ?>
           <?= $content ?>
           <tr><td style="height:16px;line-height:16px;font-size:0">&nbsp;</td></tr>
         </table>
       </td></tr>
-      <tr><td class="nl-muted" style="padding:20px 16px 8px;font-family:<?= $font ?>;font-size:12px;line-height:1.55;color:<?= e($s['muted']) ?>;text-align:center">
-        <?php if ($footer !== ''): ?><?= nl2br(e($footer)) ?><br><br><?php endif; ?>
-        <?php if ($unsubscribe !== ''): ?><?= e(lt('Sie erhalten diese E-Mail, weil Sie den Newsletter bestellt haben.')) ?> <a href="<?= e($unsubscribe) ?>" style="color:<?= e($s['muted']) ?>"><?= e(lt('Abmelden')) ?></a><?php endif; ?>
-      </td></tr>
+      <tr><td style="padding-top:8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><?= $footerHtml ?>
+        <?php if ($needUnsub): ?><tr><td class="nl-muted" style="padding:8px 16px;font-family:<?= $font ?>;font-size:12px;line-height:1.55;color:<?= e($s['muted']) ?>;text-align:center"><?= e(lt('Sie erhalten diese E-Mail, weil Sie den Newsletter bestellt haben.')) ?> <a href="<?= e($unsubscribe) ?>" style="color:<?= e($s['muted']) ?>"><?= e(lt('Abmelden')) ?></a></td></tr><?php endif; ?>
+      </table></td></tr>
     </table>
   </td></tr>
 </table>

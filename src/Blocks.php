@@ -15,6 +15,21 @@ use Core\Fields;
 final class Blocks
 {
     public const MAX = 40;
+    public const NETWORKS = ['instagram' => 'Instagram', 'facebook' => 'Facebook', 'linkedin' => 'LinkedIn', 'youtube' => 'YouTube', 'mastodon' => 'Mastodon',
+        'x' => 'X', 'tiktok' => 'TikTok', 'xing' => 'XING', 'whatsapp' => 'WhatsApp', 'website' => 'Website'];
+
+    /** Gestaltung, die jeder Baustein hat: Hintergrund und Abstand (Felder mit „_“ – nicht Teil des Inhalts) */
+    public static function styleFields(): array
+    {
+        return [
+            ['type' => 'heading', 'label' => __('Gestaltung')],
+            ['name' => '_bg', 'label' => __('Hintergrund'), 'type' => 'select', 'width' => 'half', 'default' => 'none', 'required' => true, 'options' => ['none' => __('keiner'), 'card' => __('Inhaltsfläche'),
+                'soft' => __('zarter Akzent'), 'accent' => __('Akzentfarbe'), 'dark' => __('dunkel'), 'custom' => __('eigene Farbe')]],
+            ['name' => '_bgc', 'label' => __('Eigene Farbe'), 'type' => 'color', 'width' => 'half', 'show_if' => ['_bg' => ['custom']]],
+            ['name' => '_pad', 'label' => __('Abstand oben/unten'), 'type' => 'select', 'width' => 'half', 'default' => 'normal', 'required' => true,
+                'options' => ['normal' => __('normal'), 'none' => __('ohne'), 's' => __('klein'), 'l' => __('groß')]],
+        ];
+    }
 
     /** @return array<string, array{label: string, icon: string, fields: list<array>}> */
     public static function defs(): array
@@ -79,6 +94,38 @@ final class Blocks
                 ['name' => 'text', 'label' => __('Zitat'), 'type' => 'richtext'],
                 ['name' => 'author', 'label' => __('Von'), 'type' => 'text', 'max' => 120],
             ]],
+            'logo' => ['label' => __('Logo'), 'icon' => 'seal', 'fields' => [
+                ['name' => 'image', 'label' => __('Logo'), 'type' => 'media', 'help' => __('Leer = Logo des Designs bzw. Name der Website.')],
+                ['name' => 'width', 'label' => __('Breite (px)'), 'type' => 'number', 'min' => 40, 'max' => 560, 'width' => 'half', 'default' => 160],
+                ['name' => 'align', 'label' => __('Ausrichtung'), 'type' => 'select', 'width' => 'half', 'options' => ['left' => __('links'), 'center' => __('mittig'), 'right' => __('rechts')]],
+                ['name' => 'link', 'label' => __('Link'), 'type' => 'link', 'help' => __('Leer = Startseite der Website.')],
+            ]],
+            'links' => ['label' => __('Linkleiste'), 'icon' => 'list', 'fields' => [
+                ['name' => 'items', 'label' => __('Links'), 'type' => 'repeater', 'item_label' => __('Link'), 'title_field' => 'label', 'max_items' => 6, 'fields' => [
+                    ['name' => 'label', 'label' => __('Beschriftung'), 'type' => 'text', 'max' => 40, 'width' => 'half'],
+                    ['name' => 'link', 'label' => __('Ziel'), 'type' => 'link', 'width' => 'half'],
+                ]],
+                ['name' => 'align', 'label' => __('Ausrichtung'), 'type' => 'select', 'width' => 'half', 'options' => ['center' => __('mittig'), 'left' => __('links'), 'right' => __('rechts')]],
+                ['name' => 'size', 'label' => __('Schrift'), 'type' => 'select', 'width' => 'half', 'options' => ['m' => __('normal'), 's' => __('klein'), 'caps' => __('Versalien klein')]],
+            ]],
+            'social' => ['label' => __('Social Media'), 'icon' => 'share-network', 'fields' => [
+                ['name' => 'items', 'label' => __('Profile'), 'type' => 'repeater', 'item_label' => __('Profil'), 'title_field' => 'network', 'max_items' => 8, 'fields' => [
+                    ['name' => 'network', 'label' => __('Netzwerk'), 'type' => 'select', 'required' => true, 'width' => 'half', 'options' => self::NETWORKS],
+                    ['name' => 'url', 'label' => __('Adresse'), 'type' => 'url', 'width' => 'half'],
+                ]],
+                ['name' => 'align', 'label' => __('Ausrichtung'), 'type' => 'select', 'width' => 'half', 'options' => ['center' => __('mittig'), 'left' => __('links')]],
+                ['name' => 'style', 'label' => __('Darstellung'), 'type' => 'select', 'width' => 'half', 'options' => ['pill' => __('Knöpfe'), 'text' => __('Textlinks')]],
+            ]],
+            'legal' => ['label' => __('Fußtext mit Abmeldelink'), 'icon' => 'scales', 'fields' => [
+                ['name' => 'text', 'label' => __('Text'), 'type' => 'richtext', 'help' => __('Z. B. Anschrift, Vertretung, Kontakt. Leer = Absenderangaben aus den Einstellungen bzw. dem Verteiler.')],
+                ['name' => 'unsubscribe', 'label' => __('Abmeldelink zeigen'), 'type' => 'bool', 'default' => true,
+                    'help' => __('Pflicht in jedem Newsletter – fehlt er im Kopf und Fuß, hängt die Erweiterung ihn selbst an.')],
+                ['name' => 'webversion', 'label' => __('Link „Im Browser ansehen“ zeigen'), 'type' => 'bool'],
+                ['name' => 'align', 'label' => __('Ausrichtung'), 'type' => 'select', 'width' => 'half', 'options' => ['center' => __('mittig'), 'left' => __('links')]],
+            ]],
+            'spacer' => ['label' => __('Abstand'), 'icon' => 'arrows-vertical', 'fields' => [
+                ['name' => 'size', 'label' => __('Höhe'), 'type' => 'select', 'options' => ['m' => __('mittel (24 px)'), 's' => __('klein (12 px)'), 'l' => __('groß (48 px)')]],
+            ]],
             'divider' => ['label' => __('Trenner'), 'icon' => 'minus', 'fields' => [
                 ['name' => 'style', 'label' => __('Art'), 'type' => 'select', 'options' => ['line' => __('Linie'), 'space' => __('nur Abstand'), 'accent' => __('kurze Akzentlinie')]],
             ]],
@@ -94,6 +141,8 @@ final class Blocks
             if (($f['type'] ?? '') === 'select' && !isset($f['default'])) { $f['default'] = (string) array_key_first($f['options']); $f['required'] = true; }
             if (($f['name'] ?? '') === 'count') $f['default'] ??= 3;
         }
+        unset($f);
+        $d['fields'] = array_merge($d['fields'], self::styleFields());
         return $d;
     }
 
@@ -119,7 +168,7 @@ final class Blocks
      * Formular-Eingabe ({i: {type, data}}) bereinigen – jedes Feld über Core\Fields wie überall in der Verwaltung.
      * @return array{0: list<array>, 1: array<string, string>} Bausteine, Fehler (Schlüssel „blocks.{i}.{feld}“)
      */
-    public static function sanitize(mixed $raw): array
+    public static function sanitize(mixed $raw, string $prefix = 'blocks'): array
     {
         $out = [];
         $errors = [];
@@ -127,36 +176,72 @@ final class Blocks
             $def = is_array($b) ? self::def((string) ($b['type'] ?? '')) : null;
             if (!$def) continue;
             [$data, $err] = Fields::sanitize($def['fields'], (array) ($b['data'] ?? []));
-            foreach ($err as $k => $msg) $errors['blocks.' . count($out) . '.' . $k] = $msg;
+            foreach ($err as $k => $msg) $errors[$prefix . '.' . count($out) . '.' . $k] = $msg;
             $out[] = ['type' => (string) $b['type'], 'data' => $data];
             if (count($out) >= self::MAX) break;
         }
         return [$out, $errors];
     }
 
-    /** Darstellung aller Bausteine für die Mail ($preview: leere Bilder als Platzhalter zeigen) */
-    public static function render(array $blocks, array $design, array $vars, bool $preview = false): string
+    /**
+     * Darstellung aller Bausteine für die Mail. $preview: leere Bilder als Platzhalter, jeder Baustein als <tbody data-nl-area/-i>
+     * (Klick in der Vorschau öffnet ihn im Editor). $area: body | header | footer. Gestaltung (_bg, _pad) als umgebende Zeile;
+     * auf dunklem Grund helle Schrift (Kontrast nach WCAG), auf Akzentgrund Knöpfe umgekehrt.
+     */
+    public static function render(array $blocks, array $design, array $vars, bool $preview = false, string $area = 'body'): string
     {
         $h = '';
+        $font = Design::FONTS[$design['font']] ?? Design::FONTS['system'];
         foreach ($blocks as $i => $b) {
             $file = dirname(__DIR__) . '/views/mail/blocks/' . preg_replace('~[^a-z_]~', '', (string) $b['type']) . '.php';
             if (!is_file($file)) continue;
-            $h .= \Core\Theme::capture($file, ['d' => (array) ($b['data'] ?? []), 's' => $design, 'vars' => $vars, 'preview' => $preview, 'first' => $i === 0,
-                'font' => Design::FONTS[$design['font']] ?? Design::FONTS['system']]);
+            $d = (array) ($b['data'] ?? []);
+            [$bg, $s] = self::surface($d, $design);
+            $inner = \Core\Theme::capture($file, ['d' => $d, 's' => $s, 'vars' => $vars, 'preview' => $preview, 'first' => $i === 0, 'font' => $font, 'area' => $area]);
+            if (trim($inner) === '') continue;
+            $pad = ['none' => 0, 's' => 6, 'l' => 26][$d['_pad'] ?? 'normal'] ?? null;
+            if ($bg !== '' || $pad !== null) {
+                $pt = $pad ?? 8;
+                $strip = $pad === 0 ? '~padding:\d+px 36px( \d+px)?~' : null;
+                if ($strip) $inner = (string) preg_replace($strip, 'padding:0 36px', $inner);
+                $inner = '<tr><td style="' . ($bg !== '' ? 'background:' . e($bg) . ';' : '') . 'padding:' . $pt . 'px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' . $inner . '</table></td></tr>';
+            }
+            $h .= $preview ? '<tbody data-nl-area="' . e($area) . '" data-nl-i="' . (int) $i . '">' . $inner . '</tbody>' : $inner;
         }
         return $h;
     }
 
+    /** Hintergrund eines Bausteins und dazu passende Farben (helle Schrift auf dunklem Grund) */
+    public static function surface(array $d, array $s): array
+    {
+        $bg = match ($d['_bg'] ?? 'none') {
+            'card' => $s['card'], 'soft' => \Core\Contrast::mix($s['accent'], $s['card'], 10), 'accent' => $s['accent'], 'dark' => $s['heading'],
+            'custom' => preg_match('~^#[0-9a-f]{6}$~i', (string) ($d['_bgc'] ?? '')) ? (string) $d['_bgc'] : '',
+            default => '',
+        };
+        if ($bg === '') return ['', $s];
+        $light = \Core\Contrast::ratio('#ffffff', $bg) >= \Core\Contrast::ratio('#161616', $bg);
+        if ($light) {
+            $s = ['text' => '#ffffff', 'heading' => '#ffffff', 'muted' => \Core\Contrast::mix('#ffffff', $bg, 80)] + $s;
+            // Knopf und Links auf farbigem Grund: weiß mit Grundfarbe als Schrift
+            if (\Core\Contrast::ratio($s['accent'], $bg) < 3) { $s['button_text'] = $bg; $s['accent'] = '#ffffff'; }
+        } else {
+            $s = ['text' => '#262626', 'heading' => '#161616', 'muted' => '#555555'] + $s;
+        }
+        $s['card'] = $bg;
+        return [$bg, $s];
+    }
+
     // ------------------------------------------------------------------ Eingabe (Block-Editor der Verwaltung)
 
-    public static function renderInput(string $name, array $blocks, array $errors = []): string
+    public static function renderInput(string $name, array $blocks, array $errors = [], ?string $label = null, ?string $help = null, string $area = 'body'): string
     {
         $defs = self::defs();
-        $h = '<div class="f f--blocks nl-blocks" data-blocks data-name="' . e($name) . '"><span class="f-label">' . e(__('Inhalt')) . '</span>'
-            . '<p class="f-help">' . e(__('Bausteine hinzufügen, mit ↑ ↓ ordnen, aufklappen zum Bearbeiten – die Vorschau rechts zeigt die fertige Mail.')) . '</p><div class="blk-items" data-blk-items>';
+        $h = '<div class="f f--blocks nl-blocks" data-blocks data-name="' . e($name) . '" data-nl-area="' . e($area) . '"><span class="f-label">' . e($label ?? __('Inhalt')) . '</span>'
+            . '<p class="f-help">' . e($help ?? __('Bausteine hinzufügen, ziehen oder mit ↑ ↓ ordnen, aufklappen zum Bearbeiten – ein Klick in die Vorschau öffnet den Baustein.')) . '</p><div class="blk-items" data-blk-items>';
         foreach ($blocks as $i => $b) {
-            $open = count($blocks) <= 2 || (bool) array_filter(array_keys($errors), fn($k) => str_starts_with((string) $k, "blocks.$i."));
-            $h .= self::item($name, (string) $i, $b, $errors, "blocks.$i", $open);
+            $open = count($blocks) <= 2 || (bool) array_filter(array_keys($errors), fn($k) => str_starts_with((string) $k, "$name.$i."));
+            $h .= self::item($name, (string) $i, $b, $errors, "$name.$i", $open);
         }
         $h .= '</div>';
         foreach (array_keys($defs) as $t) $h .= '<template data-blk-tpl="' . e($t) . '">' . self::item($name, '__blk__', ['type' => $t, 'data' => []], [], '', true) . '</template>';
@@ -187,6 +272,7 @@ final class Blocks
 
     private static function peek(string $type, array $d): string
     {
+        if (in_array($type, ['links', 'social'], true)) return implode(' · ', array_slice(array_filter(array_map(fn($i) => is_array($i) ? (string) ($i['label'] ?? (self::NETWORKS[$i['network'] ?? ''] ?? '')) : '', (array) ($d['items'] ?? []))), 0, 4));
         foreach (['title', 'text', 'label', 'caption', 'author'] as $k) {
             $v = trim(strip_tags((string) (is_scalar($d[$k] ?? null) ? $d[$k] : '')));
             if ($v !== '') return mb_strimwidth($v, 0, 60, '…');

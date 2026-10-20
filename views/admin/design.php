@@ -1,6 +1,7 @@
 <?php
-/** Design bearbeiten mit Live-Vorschau. @var array $design @var string $name @var array $values @var list<string> $issues */
+/** Design bearbeiten mit Live-Vorschau: Kopf und Fuß aus Bausteinen, Farben, Schrift, Formen. @var array $design @var string $name @var array $values @var list<string> $issues @var list<array> $head @var list<array> $foot */
 use Core\Fields;
+use Klxm\Newsletter\Blocks;
 use Klxm\Newsletter\Design;
 
 $base = '/admin/newsletter/designs/' . (int) $design['id'];
@@ -11,6 +12,11 @@ $base = '/admin/newsletter/designs/' . (int) $design['id'];
     <section class="adm-card">
       <div class="f"><label for="nl-dname"><?= e(__('Name')) ?></label><input id="nl-dname" name="name" type="text" maxlength="80" value="<?= e($name) ?>" required></div>
       <?php if ($issues): ?><div class="adm-flash adm-flash--warning"><?= icon('warning') ?> <?= e(__('Zu wenig Kontrast – schwer lesbar:')) ?><ul><?php foreach ($issues as $i): ?><li><?= e($i) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
+    </section>
+    <section class="adm-card"><?= Blocks::renderInput('header_blocks', $head, [], __('Kopf'), __('Steht über dem Inhalt jeder Ausgabe – z. B. Logo, Linkleiste, Bild. Bausteine ziehen oder mit ↑ ↓ ordnen; ein Klick in die Vorschau öffnet den Baustein.'), 'header') ?></section>
+    <section class="adm-card"><?= Blocks::renderInput('footer_blocks', $foot, [], __('Fuß'), __('Steht unter dem Inhalt – z. B. Social Media, Fußtext mit Anschrift und Abmeldelink. Fehlt der Abmeldelink, wird er automatisch angehängt.'), 'footer') ?></section>
+    <section class="adm-card">
+      <h2><?= e(__('Farben, Schrift, Formen')) ?></h2>
       <div class="adm-fields"><?= Fields::renderForm(Design::fields(), $values, [], 'f') ?></div>
     </section>
     <div class="adm-savebar">

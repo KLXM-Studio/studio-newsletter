@@ -27,6 +27,7 @@ final class Design
         'bg' => '#f2f2f0', 'card' => '#ffffff', 'text' => '#2b2b2b', 'heading' => '#161616', 'muted' => '#6b6b6b',
         'accent' => '#1f3a5f', 'button_text' => '#ffffff', 'header_bg' => '#1f3a5f', 'header_text' => '#ffffff',
         'radius' => 8, 'button' => 'rounded', 'card_border' => true, 'dark' => true,
+        'header_blocks' => [], 'footer_blocks' => [], 'blocks_set' => false,
     ];
     /** Mitgelieferte Designs – Kontraste nach WCAG AA geprüft (Selbsttest) */
     public const PRESETS = [
@@ -101,6 +102,7 @@ final class Design
             if (!preg_match('~^#[0-9a-f]{6}$~i', (string) $s[$k])) $s[$k] = self::DEFAULTS[$k];
         }
         if (!isset(self::FONTS[$s['font']])) $s['font'] = 'system';
+        foreach (['header_blocks', 'footer_blocks'] as $k) $s[$k] = Blocks::items($s[$k]);
         $s['radius'] = max(0, min(24, (int) $s['radius']));
         $s['logo_width'] = max(60, min(320, (int) $s['logo_width']));
         return $s;
@@ -125,13 +127,9 @@ final class Design
     {
         $font = ['system' => __('System (wie Apple Mail, Outlook, Android)'), 'helvetica' => 'Helvetica / Arial', 'verdana' => 'Verdana', 'trebuchet' => 'Trebuchet', 'georgia' => __('Georgia (mit Serifen)')];
         return [
-            ['type' => 'heading', 'label' => __('Kopf')],
-            ['name' => 'header', 'label' => __('Kopf'), 'type' => 'select', 'required' => true, 'options' => ['name' => __('Name der Website'), 'logo' => __('Logo links'),
-                'logo_center' => __('Logo mittig'), 'band' => __('Farbfläche mit Logo oder Name')]],
-            ['name' => 'logo', 'label' => __('Logo'), 'type' => 'media', 'help' => __('PNG oder JPG, am besten doppelt so breit wie angezeigt. SVG zeigen viele E-Mail-Programme nicht.')],
+            ['type' => 'heading', 'label' => __('Logo')],
+            ['name' => 'logo', 'label' => __('Logo des Designs'), 'type' => 'media', 'help' => __('Für den Baustein „Logo“ im Kopf, wenn dort kein eigenes Bild gewählt ist. PNG oder JPG, am besten doppelt so breit wie angezeigt – SVG zeigen viele E-Mail-Programme nicht.')],
             ['name' => 'logo_width', 'label' => __('Breite des Logos (px)'), 'type' => 'number', 'min' => 60, 'max' => 320, 'width' => 'half'],
-            ['name' => 'header_bg', 'label' => __('Farbfläche: Hintergrund'), 'type' => 'color', 'width' => 'half', 'show_if' => ['header' => ['band']]],
-            ['name' => 'header_text', 'label' => __('Farbfläche: Schrift'), 'type' => 'color', 'width' => 'half', 'show_if' => ['header' => ['band']]],
             ['type' => 'heading', 'label' => __('Schrift und Farben')],
             ['name' => 'font', 'label' => __('Schrift'), 'type' => 'select', 'required' => true, 'options' => $font],
             ['name' => 'accent', 'label' => __('Akzent (Linie, Links, Knopf)'), 'type' => 'color', 'width' => 'half'],
@@ -156,12 +154,27 @@ final class Design
         $out = [];
         $pairs = [['text', 'card', __('Text auf Inhaltsfläche')], ['heading', 'card', __('Überschriften auf Inhaltsfläche')], ['button_text', 'accent', __('Schrift auf dem Knopf')],
             ['accent', 'card', __('Links (Akzent) auf Inhaltsfläche')], ['muted', 'bg', __('Fuß auf Hintergrund')]];
-        if ($s['header'] === 'band') $pairs[] = ['header_text', 'header_bg', __('Schrift der Farbfläche')];
+        if ($s['header'] === 'band' && !$s['header_blocks']) $pairs[] = ['header_text', 'header_bg', __('Schrift der Farbfläche')];
         foreach ($pairs as [$a, $b, $label]) {
             $r = \Core\Contrast::ratio((string) $s[$a], (string) $s[$b]);
             if ($r < 4.5) $out[] = __('{what}: Kontrast {r}:1 (mindestens 4,5:1)', ['what' => $label, 'r' => fmt()->decimal($r, 1)]);
         }
         return $out;
+    }
+
+    /** Kopf und Fuß als Bausteine – gespeicherte oder aus den älteren Einstellungen abgeleitete (für den Editor) */
+    public static function headerBlocks(array $s): array
+    {
+        if ($s['blocks_set'] || $s['header_blocks']) return $s['header_blocks'];   // im Editor gestaltet – auch „kein Kopf“
+        $logo = ['type' => 'logo', 'data' => ['width' => (int) $s['logo_width'], 'align' => $s['header'] === 'logo_center' ? 'center' : 'left', '_bg' => 'none', '_pad' => 'normal']];
+        if ($s['header'] === 'band') $logo['data'] = ['_bg' => 'custom', '_bgc' => $s['header_bg']] + $logo['data'];
+        return [$logo, ['type' => 'divider', 'data' => ['style' => 'accent', '_pad' => 'none']]];
+    }
+
+    public static function footerBlocks(array $s): array
+    {
+        if ($s['blocks_set'] || $s['footer_blocks']) return $s['footer_blocks'];
+        return [['type' => 'legal', 'data' => ['unsubscribe' => true, 'webversion' => false, 'align' => 'center']]];
     }
 
     /** Logo-Adresse (PNG/JPG, absolute URL) */
