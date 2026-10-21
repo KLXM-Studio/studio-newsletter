@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2 – 2026-10-21
+
+- Editor: aufgeklappte Bausteine ragten bei schmaler Spalte rechts aus der Karte (Knöpfe und Auswahlfelder außerhalb) – Bausteine sind `<fieldset>` mit Browser-Vorgabe `min-width: min-content`; jetzt nie breiter als die Karte.
+
 ## 0.6.1 – 2026-10-21
 
 - Redaktionskommentare `[# … #]` (z. B. aus übernommenen Einträgen einer Datentabelle) erscheinen nie mehr in Mail und Betreff.

@@ -15,6 +15,8 @@
 .nl-editor{display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr);align-items:start}
 @media (min-width:1440px){.nl-editor{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.nl-editor__preview{position:sticky;top:1rem}}
 .nl-editor__form{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;min-width:0}
+/* Bausteine sind <fieldset> (Browser-Vorgabe min-width:min-content) – nie breiter als die Karte, Auswahlfelder kürzen */
+.nl-editor__form fieldset{min-width:0;max-width:100%}.nl-editor__form select,.nl-editor__form input:not([type=checkbox]):not([type=radio]){max-width:100%;min-width:0}
 .nl-preview{display:grid;gap:.5rem}
 .nl-preview__bar{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
 .nl-preview__bar .is-on{outline:2px solid currentColor;outline-offset:-2px}
