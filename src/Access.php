@@ -61,11 +61,13 @@ final class Access
     public static function choices(): array
     {
         $out = [];
+        $all = [];   // Rollen mit allen Rechten (Administration) dürfen ohnehin alles – weder Rolle noch Personen zur Auswahl
         foreach (\Core\Permissions::roles() as $key => $r) {
-            if (in_array('*', $r['permissions'], true)) continue;   // Administration darf ohnehin alles
+            if (in_array('*', $r['permissions'], true)) { $all[] = (string) $key; continue; }
             $out['r:' . $key] = __('Rolle „{name}“', ['name' => $r['name']]) . (in_array(Newsletter::PERM_SEND, $r['permissions'], true) || in_array(Newsletter::PERM, $r['permissions'], true) ? '' : ' ' . __('(ohne Newsletter-Recht)'));
         }
         foreach (app()->db->fetchAll('SELECT id, email, name, role FROM users WHERE disabled = 0 ORDER BY name, email') as $u) {
+            if (in_array((string) $u['role'], $all, true)) continue;
             $out['u:' . (int) $u['id']] = trim((string) $u['name']) !== '' ? $u['name'] . ' (' . $u['email'] . ')' : (string) $u['email'];
         }
         return $out;

@@ -215,10 +215,12 @@ final class SelfTest
         $key = Newsletter::key();
         $email = 'nl-selftest-' . bin2hex(random_bytes(3)) . '@example.org';
         $ids = ['sub' => 0, 'list' => 0, 'camp' => 0, 'list2' => 0];
+        $subIds = [];
         try {
             $ids['list'] = Repo::saveList(0, ['name' => 'Selbsttest', 'public' => false]);
             $s = Repo::upsert(['email' => strtoupper($email), 'name' => 'Erika', 'status' => 'pending', 'source' => 'admin']);
             $ids['sub'] = (int) $s['id'];
+            $subIds[] = $ids['sub'];
             self::eq('Empfänger angelegt, Adresse vereinheitlicht', $s['email'], $email);
             Repo::update($ids['sub'], ['pending_lists' => (string) $ids['list'], 'consent_at' => Repo::now()]);
             $tok = Newsletter::token('confirm', (array) Repo::find($ids['sub']));
@@ -246,7 +248,7 @@ final class SelfTest
             self::eq('Verteiler: Farbe, Fußzeile, unbekanntes Konto verworfen', [$l2['color'], $l2['footer'], $l2['account']], ['#aa3300', 'Pressestelle Musterstadt', '']);
             $offer = Newsletter::signOffer([$ids['list2']]);
             self::eq('Angebot des Blocks signiert', [Newsletter::verifyOffer($offer), Newsletter::verifyOffer($ids['list'] . substr($offer, strpos($offer, '.')))], [[$ids['list2']], []]);
-            Repo::update($s2 = (int) Repo::upsert(['email' => 'x' . $email, 'status' => 'active', 'source' => 'admin'])['id'], []);
+            Repo::update($subIds[] = $s2 = (int) Repo::upsert(['email' => 'x' . $email, 'status' => 'active', 'source' => 'admin'])['id'], []);
             Repo::setLists($s2, [$ids['list'], $ids['list2']]);
             // Rechte: Redaktion sieht nur Empfänger ihrer Verteiler; Zuweisung bleibt bei anderen Speichervorgängen erhalten
             app()->db->update('newsletter_lists', ['editors' => 'r:selbsttest'], 'id = ?', [$ids['list2']]);
@@ -268,6 +270,8 @@ final class SelfTest
         } catch (\Throwable $e) {
             self::eq('Datenbank: ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')', false, true);
         } finally {
+            // Protokoll der Test-Empfänger (Abmeldungen, Sperren …) zuerst – manche Einträge tragen keine Adresse
+            if ($subIds) app()->db->query('DELETE FROM newsletter_events WHERE subscriber_id IN (' . implode(',', array_map('intval', $subIds)) . ')');
             if ($ids['sub']) Repo::deleteSubscriber($ids['sub']);
             if ($ids['camp']) Repo::deleteCampaign($ids['camp']);
             if ($ids['list']) Repo::deleteList($ids['list']);

@@ -21,7 +21,7 @@ final class Message
         $list = Repo::primaryList(Repo::campaignLists($c));
         $unsub = (int) ($sub['id'] ?? 0) > 0 ? Newsletter::unsubscribeUrl($sub, (int) $c['id']) : absolute_url(Newsletter::BASE . '/abmelden');
         $vars = self::vars($sub) + ['unsubscribe' => $unsub, 'webversion' => (int) ($c['id'] ?? 0) ? Newsletter::webUrl($c) : '', 'date' => self::issueDate($c)];
-        $subject = Template::fill((string) $c['subject'], $vars);
+        $subject = \Core\EditorNotes::strip(Template::fill((string) $c['subject'], $vars));
         $html = self::html($c, $vars, $list, ['subject' => $subject, 'unsubscribe' => $unsub, 'webversion' => $vars['webversion'], 'test' => $test]);
         return self::envelope($subject, $html, (int) $c['id'], $sub, $unsub) + ['via' => (string) ($list['account'] ?? '')];
     }
@@ -36,12 +36,13 @@ final class Message
         $vars += ['unsubscribe' => (string) ($o['unsubscribe'] ?? ''), 'webversion' => (string) ($o['webversion'] ?? ''), 'date' => self::issueDate($c)];
         $vars += ['subject' => Template::fill((string) $c['subject'], $vars)];
         $content = Blocks::render(Blocks::of($c), $s, $vars, !empty($o['preview']));
-        return self::layout([
+        // Redaktionskommentare [# … #] (in Bausteinen und übernommenen Einträgen) gehören nie in die Mail
+        return \Core\EditorNotes::publicHtml(self::layout([
             'subject' => (string) ($o['subject'] ?? Template::fill((string) $c['subject'], $vars)),
             'preheader' => Template::fill((string) ($c['preheader'] ?? ''), $vars),
             'content' => $content, 'unsubscribe' => (string) ($o['unsubscribe'] ?? ''), 'webversion' => (string) ($o['webversion'] ?? ''),
             'test' => !empty($o['test']), 'forceDark' => !empty($o['dark']),
-        ], $s, $list, $vars, !empty($o['preview']));
+        ], $s, $list, $vars, !empty($o['preview'])));
     }
 
     /** Bestätigungsmail (Double-Opt-in) – Text plus HTML im Design des Verteilers */

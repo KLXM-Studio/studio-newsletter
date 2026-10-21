@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 – 2026-10-21
+
+- Redaktionskommentare `[# … #]` (z. B. aus übernommenen Einträgen einer Datentabelle) erscheinen nie mehr in Mail und Betreff.
+- Editor: zwei Spalten erst ab 1440 px Fensterbreite; darunter Vorschau unter dem Formular (vorher überlagerte die Vorschau das Formular bei ca. 1280 px).
+- Verteiler-Zuweisung: Administration (Rollen mit allen Rechten) steht nicht mehr zur Auswahl – sie darf ohnehin alles.
+- Selbsttest räumt auch seine Protokolleinträge ohne Adresse (Abmeldung, Sperre) wieder ab.
+
 ## 0.6.0 – 2026-10-20
 
 - Rechte: neues Recht „Ausgaben schreiben und versenden“ (`newsletter.send`) für die Redaktion – nur Ausgaben und Empfänger der zugewiesenen Verteiler. Zuweisung je Verteiler an Rollen und/oder Personen („Wer darf diesen Verteiler bedienen?“). Einstellungen, Designs, Verteiler, Protokoll, Löschen und Sperren bleiben bei `newsletter.manage`.

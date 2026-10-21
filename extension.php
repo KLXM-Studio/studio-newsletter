@@ -27,7 +27,7 @@ use Klxm\Newsletter\SiteController;
 return [
     'name' => 'newsletter',
     'label' => 'Newsletter – Anmeldung, Versand, Rückläufer',
-    'version' => '0.6.0',
+    'version' => '0.6.1',
     'requires' => '>=1.0.0',
     'description' => 'Newsletter mit Double-Opt-in, Verteilern und gedrosseltem Versand – über den eigenen SMTP-Server (Rückläufer per IMAP) oder Mailjet (SMTP oder API, Rückläufer per Webhook). Hard und Soft Bounces, Beschwerden und Sperrliste.',
     'author' => 'KLXM Crossmedia GmbH and contributors',

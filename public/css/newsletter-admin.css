@@ -13,8 +13,8 @@
 .nl-inline-check{display:inline-flex;gap:.35rem;align-items:center;margin-right:.75rem}
 /* Editor mit Vorschau */
 .nl-editor{display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr);align-items:start}
-@media (min-width:1280px){.nl-editor{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.nl-editor__preview{position:sticky;top:1rem}}
-.nl-editor__form{display:grid;gap:1rem;min-width:0}
+@media (min-width:1440px){.nl-editor{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.nl-editor__preview{position:sticky;top:1rem}}
+.nl-editor__form{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;min-width:0}
 .nl-preview{display:grid;gap:.5rem}
 .nl-preview__bar{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
 .nl-preview__bar .is-on{outline:2px solid currentColor;outline-offset:-2px}
