@@ -33,6 +33,8 @@ final class Signup
         $rl = new RateLimiter(app()->db);
         $k = 'newsletter:doi:' . Address::hash($email, Newsletter::key());
         if ($rl->tooMany($k, 3, 86400)) return ['ok' => true];
+        // Von Hand gesperrt: keine Bestätigungsmail, nach außen dieselbe Antwort (nichts verraten)
+        if (Repo::suppressed($email) === 'manual') return ['ok' => true];
 
         $sub = Repo::byEmail($email);
         if ($sub && $sub['status'] === 'active') {
@@ -77,6 +79,9 @@ final class Signup
         if (!$sub) return 'invalid';
         $pending = (string) ($sub['pending_lists'] ?? '');
         if ($sub['status'] === 'active' && $pending === '') return 'ok';   // Link zweimal geklickt
+        // Nur offene Anmeldungen bestätigen – ein alter Link meldet nach einer Abmeldung nicht wieder an
+        if ($sub['status'] !== 'pending' && $pending === '') return 'invalid';
+        if (Repo::suppressed((string) $sub['email']) === 'manual') return 'invalid';   // von Hand gesperrt – nur die Verwaltung hebt auf
         if (strtotime((string) ($sub['consent_at'] ?: $sub['created_at'])) < time() - Newsletter::CONFIRM_DAYS * 86400) return 'expired';
         Repo::update((int) $sub['id'], ['status' => 'active', 'confirmed_at' => Repo::now(), 'bounce_reason' => '', 'soft_count' => 0, 'soft_first_at' => 0,
             'soft_last_campaign' => 0, 'soft_campaigns' => 0, 'unsubscribed_at' => null, 'pending_lists' => '']);

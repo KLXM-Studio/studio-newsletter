@@ -15,8 +15,13 @@ final class Processor
 {
     public function __construct(private Store $store, private Policy $policy) {}
 
-    /** @return array{subscriber: int, campaign: int, applied: array} */
-    public function apply(Result $r, int $now): array
+    /**
+     * $byAddress: ohne gültigen Bezug (Ref) auch über die gemeldete Adresse zuordnen. Nur für geschützte Quellen (Mailjet-Webhook
+     * mit Schlüssel) – eine Mail an das Bounce-Postfach kann jeder schicken; sonst ließe sich jede Adresse per gefälschter
+     * Beschwerde sperren. Ohne Bezug wird dann nur protokolliert.
+     * @return array{subscriber: int, campaign: int, applied: array}
+     */
+    public function apply(Result $r, int $now, bool $byAddress = true): array
     {
         $campaign = (int) ($r->ref['campaign'] ?? 0);
         $sub = null;
@@ -24,14 +29,14 @@ final class Processor
             $sub = $this->store->subscriber((int) $r->ref['subscriber']);
             // Bezug passt, aber gemeldete Adresse gehört jemand anderem (Weiterleitung): Bezug gilt – Weiterleitungen melden die Zieladresse
         }
-        if (!$sub && $r->recipient !== '') $sub = $this->store->subscriberByEmail($r->recipient);
+        if (!$sub && $r->recipient !== '' && $byAddress) $sub = $this->store->subscriberByEmail($r->recipient);
         $sid = (int) ($sub['id'] ?? 0);
         $applied = ['changes' => [], 'suppress' => null, 'stat' => null];
         if ($sub) {
             $applied = $this->policy->decide($r, $sub, $campaign, $now);
             if ($applied['changes']) $this->store->updateSubscriber($sid, $applied['changes']);
             if ($applied['suppress']) $this->store->suppress((string) $sub['email'], (string) $applied['suppress']);
-        } elseif ($r->type === Result::COMPLAINT && $r->recipient !== '') {
+        } elseif ($r->type === Result::COMPLAINT && $r->recipient !== '' && $byAddress) {
             // Beschwerde ohne bekannten Empfänger: trotzdem sperren
             $this->store->suppress($r->recipient, 'complaint');
             $applied['suppress'] = 'complaint';

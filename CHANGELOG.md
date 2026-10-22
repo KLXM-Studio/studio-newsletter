@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.3 – 2026-10-22
+
+Sicherheit (Befunde der Sicherheitsprüfung):
+- Redaktion meldet einen Empfänger nur von den eigenen Verteilern ab (vorher von allen).
+- Rückläufer aus dem Bounce-Postfach sperren nur mit gültigem Bezug (VERP/Kopfzeile) – eine gefälschte Beschwerde-Mail kann keine fremde Adresse mehr sperren. Der Mailjet-Webhook (mit Schlüssel) ordnet weiter über die Adresse zu.
+- Von Hand gesperrte Adressen: Neuanmeldung schickt keine Bestätigung, ein Bestätigungslink hebt die Sperre nicht auf.
+- Bestätigungslink nur für offene Anmeldungen – ein alter Link meldet nach einer Abmeldung nicht wieder an.
+
 ## 0.6.2 – 2026-10-21
 
 - Editor: aufgeklappte Bausteine ragten bei schmaler Spalte rechts aus der Karte (Knöpfe und Auswahlfelder außerhalb) – Bausteine sind `<fieldset>` mit Browser-Vorgabe `min-width: min-content`; jetzt nie breiter als die Karte.

@@ -88,7 +88,7 @@ final class Bounces
             foreach ($c->search('UNSEEN', $limit) as $uid) {
                 $raw = $c->fetch($uid);
                 $r = Parser::parse($raw, Newsletter::key());
-                $processor->apply($r, time());
+                $processor->apply($r, time(), false);   // Postfach: nur mit gültigem Bezug sperren
                 $out['checked']++;
                 $out['by_type'][$r->type] = ($out['by_type'][$r->type] ?? 0) + 1;
                 match ($after) {

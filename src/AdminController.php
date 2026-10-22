@@ -380,7 +380,8 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
             return $this->to('/admin/newsletter/empfaenger/' . (int) $id, $err ? 'error' : 'success', $err ?: __('Bestätigungsmail erneut gesendet.'));
         }
         if ($act === 'unsubscribe') {
-            Signup::unsubscribe($s, 'admin');
+            // Redaktion: nur von den eigenen Verteilern abmelden (Verwaltung: von allen)
+            Signup::unsubscribe($s, 'admin', Access::manager() ? null : array_values(array_intersect(Repo::listIds((int) $id), Access::lists())));
             return $this->to('/admin/newsletter/empfaenger/' . (int) $id, 'success', __('Abgemeldet.'));
         }
         Repo::update((int) $id, ['name' => mb_substr(trim((string) ($r->post['name'] ?? '')), 0, 120), 'note' => mb_substr((string) ($r->post['note'] ?? ''), 0, 2000)]);

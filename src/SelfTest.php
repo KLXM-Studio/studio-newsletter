@@ -264,6 +264,14 @@ final class SelfTest
             self::eq('letzter Verteiler abbestellt → abgemeldet', Repo::find($s2)['status'] ?? '', 'unsubscribed');
             Repo::block($s2, 'Widerspruch per Telefon', 'Selbsttest');
             self::eq('Von Hand gesperrt: Status, Grund, Sperrliste, Vermerk', [Repo::find($s2)['status'] ?? '', Repo::find($s2)['bounce_reason'] ?? '', Repo::suppressed('x' . $email), str_contains((string) (Repo::find($s2)['note'] ?? ''), 'Widerspruch per Telefon')], ['bounced', 'manual', 'manual', true]);
+            Signup::subscribe('x' . $email, '', [], '127.0.0.1');
+            self::eq('Von Hand gesperrt: Neuanmeldung ändert nichts', [Repo::find($s2)['status'] ?? '', Repo::suppressed('x' . $email)], ['bounced', 'manual']);
+            self::eq('Von Hand gesperrt: Bestätigungslink greift nicht', Signup::confirm(Newsletter::token('confirm', (array) Repo::find($s2))), 'invalid');
+            // Gefälschte Beschwerde an das Bounce-Postfach (ohne Bezug): nur protokollieren, nicht sperren
+            $victim = 'v' . $email;
+            (new Processor(new Repo(), Newsletter::policy()))->apply(new Result(Result::COMPLAINT, $victim), time(), false);
+            self::eq('Beschwerde ohne Bezug aus dem Postfach sperrt niemanden', Repo::suppressed($victim), null);
+            app()->db->query('DELETE FROM newsletter_events WHERE email = ?', [$victim]);
             Repo::deleteSubscriber($ids['sub']);
             $ids['sub'] = 0;
             self::eq('Nach dem Löschen bleibt nur die Prüfsumme gesperrt', [Repo::byEmail($email), Repo::suppressed($email)], [null, 'hard']);
