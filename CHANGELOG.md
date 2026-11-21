@@ -15,6 +15,13 @@ Altbestand übernehmen und bestätigen lassen (Re-Permission):
 - Rückläufer-Regeln: Hard Bounce und Abmeldung beim Versanddienst gelten auch für „Bestätigung ausstehend“.
 - Selbsttest um 38 Prüfungen erweitert; Selbsttest räumt eine von Hand gesperrte Testadresse jetzt wirklich ab (Reihenfolge beim Aufräumen).
 
+Impressum in jeder Mail (braucht Core mit `Core\Mail\Imprint`):
+- Jede Mail des Newsletters trägt das **Impressum der Website** (Grundeinstellungen → E-Mail-Versand → „Impressum für E-Mails“ und Link zur Impressum-Seite) – Ausgaben, Testmails, Webversion, Double-Opt-in-Bestätigung, Altbestand-Bitte und -Erinnerung. HTML: Zeile unter dem Fuß des Designs (Schrift des Designs, Farbe „gedämpft“ nur mit Kontrast ≥ 4,5:1, sonst Textfarbe); Text: nach dem Trenner „-- “. Der Fußtext des Verteilers bleibt als Ergänzung.
+- Kein doppeltes Impressum: Der Mailer erhält `'imprint' => 'included'`; der Versand über die Mailjet-API enthält dasselbe HTML und denselben Text.
+- Ohne Impressum (weder Text noch Impressum-Seite) lassen sich Ausgaben und Altbestand-Bitten nicht starten, Erinnerungen nicht vormerken; der Cron versendet nichts und meldet es. Hinweis auf der Seite der Ausgabe und der Aktion. Die Double-Opt-in-Bestätigung (einzelne Mail) geht weiter.
+- `Campaigns::schedule()` gibt jetzt eine Fehlermeldung oder `null` zurück.
+- Selbsttest um 14 Prüfungen erweitert (Impressum in Ausgabe, Testmail, Webversion, Bestätigung, Altbestand-Bitte und Erinnerung, genau einmal über den Mailer, Sperre ohne Impressum).
+
 ## 0.6.3 – 2026-10-22
 
 Sicherheit (Befunde der Sicherheitsprüfung):

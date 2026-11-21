@@ -28,6 +28,7 @@ $previewBar = function (string $src = '') use ($base): void { ?>
   </div>
 <?php };
 ?>
+<?php if (in_array($status, ['draft', 'scheduled', 'sending', 'paused'], true) && ($impErr = \Klxm\Newsletter\Newsletter::imprintBlocked())): // ohne Impressum der Website kein Versand ?><p class="adm-flash adm-flash--error" role="note"><?= e($impErr) ?></p><?php endif; ?>
 <?php if ($status !== 'draft'): $q = Campaigns::rates($c); ?>
 <section class="adm-card">
   <h2><?= e(__('Versand')) ?> <span class="adm-badge"><?= e($label[$status] ?? $status) ?></span></h2>

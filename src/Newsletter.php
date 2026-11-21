@@ -41,6 +41,23 @@ final class Newsletter
         return $x ? $x->asset($path) : '';
     }
 
+    /**
+     * Impressum der Website für Mails (Core\Mail\Imprint::get()). Übergang: ein Kern ohne Core\Mail\Imprint liefert leere Angaben
+     * (dann hängt auch der Mailer nichts an) – die Erweiterung läuft dort weiter wie bisher.
+     * @return array{text: string, html: string, url: string, body: string, label: string, lang: string}
+     */
+    public static function imprint(): array
+    {
+        return class_exists(\Core\Mail\Imprint::class) ? \Core\Mail\Imprint::get()
+            : ['text' => '', 'html' => '', 'url' => '', 'body' => '', 'label' => '', 'lang' => (string) (app()->lang ?? 'de')];
+    }
+
+    /** Ausgaben und Altbestand-Bitten gesperrt, weil die Website kein Impressum für E-Mails hat? Meldung oder null */
+    public static function imprintBlocked(): ?string
+    {
+        return class_exists(\Core\Mail\Imprint::class) ? \Core\Mail\Imprint::bulkError() : null;
+    }
+
     public static function key(): string
     {
         return app()->key();

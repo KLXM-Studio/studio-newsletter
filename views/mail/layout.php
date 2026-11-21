@@ -5,6 +5,7 @@
  * @var string $subject @var string $preheader @var string $content (sicheres HTML der Bausteine) @var string $unsubscribe @var string $webversion
  * @var bool $test @var string $site @var array $s Design @var string $footer @var string $lang @var bool $forceDark (Vorschau „dunkel“)
  * @var string $headerHtml @var string $footerHtml (Bausteine des Designs) @var bool $needUnsub (Abmeldelink ergänzen)
+ * @var string $imprintHtml Impressum der Website (Message::imprintRow, Core\Mail\Imprint) – immer unter dem Fuß
  */
 use Klxm\Newsletter\Design;
 
@@ -56,6 +57,7 @@ $darkRules = '[style*="color:' . $s['accent'] . '"]{color:' . $accDark . '!impor
       </td></tr>
       <tr><td style="padding-top:8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><?= $footerHtml ?>
         <?php if ($needUnsub): ?><tr><td class="nl-muted" style="padding:8px 16px;font-family:<?= $font ?>;font-size:12px;line-height:1.55;color:<?= e($s['muted']) ?>;text-align:center"><?= e(lt('Sie erhalten diese E-Mail, weil Sie den Newsletter bestellt haben.')) ?> <a href="<?= e($unsubscribe) ?>" style="color:<?= e($s['muted']) ?>"><?= e(lt('Abmelden')) ?></a></td></tr><?php endif; ?>
+        <?= $imprintHtml ?? '' ?>
       </table></td></tr>
     </table>
   </td></tr>

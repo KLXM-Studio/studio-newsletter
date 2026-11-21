@@ -15,6 +15,9 @@ use Klxm\Newsletter\Engine\Template;
  */
 final class Message
 {
+    /** Impressum-Zeile im HTML (Marker) – für die Textfassung entfernt und dort nach „-- “ angehängt */
+    private const IMPRINT_RE = '~<!--nl-imprint-->.*?<!--/nl-imprint-->~s';
+
     /** Ausgabe an einen Empfänger ($sub id 0 = Testversand an eine Adresse ohne Empfängerdatensatz) */
     public static function campaign(array $c, array $sub, bool $test = false): array
     {
@@ -62,7 +65,7 @@ final class Message
         $html = self::layout(['subject' => $subject, 'preheader' => '', 'content' => $rows, 'unsubscribe' => '', 'webversion' => '', 'test' => false], $s, $list,
             ['site' => $vars['site'], 'name' => $vars['name'], 'unsubscribe' => '', 'webversion' => '']);
         $m = self::envelope($subject, $html, 0, $sub, '');
-        $m['text'] = $text;   // eigener Text statt Umwandlung (Link vollständig)
+        $m['text'] = self::withImprint($text);   // eigener Text statt Umwandlung (Link vollständig), Impressum nach „-- “
         return $m + ['via' => (string) ($list['account'] ?? '')];
     }
 
@@ -103,7 +106,7 @@ final class Message
         $html = self::layout(['subject' => $subject, 'preheader' => '', 'content' => $rows, 'unsubscribe' => $no, 'webversion' => '', 'test' => false], $s, $list,
             ['site' => $vars['site'], 'name' => $vars['name'], 'unsubscribe' => $no, 'webversion' => ''], $preview);
         $m = self::envelope($subject, $html, 0, $sub, $preview ? '' : $no);
-        $m['text'] = implode("\n\n", $text);
+        $m['text'] = self::withImprint(implode("\n\n", $text));
         if (!$preview && (int) ($sub['id'] ?? 0) > 0) {
             // Ein-Klick (RFC 8058) auf die Seite der Bitte: POST mit List-Unsubscribe=One-Click lehnt ab
             $m['headers']['List-Unsubscribe'] = '<' . Repermit::url($entry) . '>';
@@ -153,7 +156,7 @@ final class Message
         $bounce = Bounces::settings()['address'];
         return [
             'to' => (string) ($sub['email'] ?? ''), 'to_name' => (string) ($sub['name'] ?? ''),
-            'subject' => $subject, 'html' => $html, 'text' => Template::toText($html), 'headers' => $headers,
+            'subject' => $subject, 'html' => $html, 'text' => self::withImprint(Template::toText((string) preg_replace(self::IMPRINT_RE, '', $html))), 'headers' => $headers,
             'ref' => $ref, 'custom_id' => 'nl.' . $ref,
             'message_id' => Ref::messageId(Newsletter::mailDomain(), $campaign, $sid, $key),
             'return_path' => $bounce !== '' ? Ref::verp($bounce, $campaign, $sid, $key) : '',   // nur genutzt bei eigenem Server (Sender)
@@ -176,10 +179,38 @@ final class Message
         $hasUnsub = (bool) array_filter(array_merge($head, $foot), fn($b) => $b['type'] === 'legal' && ($b['data']['unsubscribe'] ?? true));
         $outer = ['card' => $s['bg']] + $s;   // Fuß steht auf dem Hintergrund, nicht auf der Inhaltsfläche
         $v += ['site' => self::siteName(), 's' => $s, 'footer' => $footer, 'lang' => app()->lang ?? 'de', 'forceDark' => false,
+            'imprintHtml' => self::imprintRow(Newsletter::imprint(), $outer),
             'headerHtml' => Blocks::render($head, $s, $vars, $preview, 'header'),
             'footerHtml' => Blocks::render($foot, $outer, $vars, $preview, 'footer'),
             'needUnsub' => !$hasUnsub && $vars['unsubscribe'] !== ''];
         return \Core\Theme::capture(dirname(__DIR__) . '/views/mail/layout.php', $v);
+    }
+
+    /**
+     * Impressum der Website (Core\Mail\Imprint) als Zeile unter dem Fuß – in jeder Mail des Newsletters (Ausgabe, Bestätigung,
+     * Altbestand, Test, Webversion), zusätzlich zum Fußtext des Verteilers. Schrift des Designs; Farbe „gedämpft“ nur mit
+     * Kontrast ≥ 4,5:1 zum Hintergrund, sonst die Textfarbe. Der Mailer erhält dazu 'imprint' => 'included' (nie doppelt).
+     */
+    public static function imprintRow(array $imp, array $s): string
+    {
+        if (($imp['text'] ?? '') === '') return '';
+        $font = Design::FONTS[$s['font'] ?? 'system'] ?? Design::FONTS['system'];
+        $bg = (string) ($s['card'] ?? $s['bg'] ?? '#ffffff');
+        $color = \Core\Contrast::ratio((string) $s['muted'], $bg) >= 4.5 ? (string) $s['muted'] : (string) $s['text'];
+        $lines = array_values(array_filter(array_map('trim', explode("\n", (string) $imp['body'])), fn($l) => $l !== ''));
+        $url = (string) $imp['url'];
+        return '<!--nl-imprint--><tr><td class="nl-pad nl-muted" lang="' . e((string) $imp['lang']) . '" style="padding:12px 36px 6px;font-family:' . $font . ';font-size:12px;line-height:1.55;text-align:center;color:' . e($color) . '">'
+            . '<strong>' . e((string) $imp['label']) . '</strong>'
+            . ($lines ? '<br>' . implode('<br>', array_map('e', $lines)) : '')
+            . ($url !== '' ? '<br><a href="' . e($url) . '" style="color:' . e($color) . ';text-decoration:underline">' . e($url) . '</a>' : '')
+            . '</td></tr><!--/nl-imprint-->';
+    }
+
+    /** Textfassung mit dem Impressum der Website nach dem Signatur-Trenner „-- “ */
+    public static function withImprint(string $text): string
+    {
+        $imp = Newsletter::imprint();
+        return $imp['text'] === '' ? $text : rtrim($text) . "\n\n-- \n" . $imp['text'] . "\n";   // wie Core\Mail\Imprint::appendText
     }
 
     public static function siteName(): string

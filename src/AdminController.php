@@ -202,7 +202,7 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         }
         $at = trim((string) ($r->post['at'] ?? ''));
         $when = $at !== '' && ($ts = strtotime($at)) && $ts > time() + 60 ? date('Y-m-d H:i:s', $ts) : null;
-        Campaigns::schedule((int) $id, $when);
+        if ($err = Campaigns::schedule((int) $id, $when)) return $this->to('/admin/newsletter/' . (int) $id, 'error', $err);
         return $this->to('/admin/newsletter/' . (int) $id, 'success', $when ? __('Versand geplant für {when}.', ['when' => fmt()->datetime($when)])
             : __('Versand gestartet – die Ausgabe geht in Stapeln hinaus (geplante Aufgabe „Newsletter versenden“, jede Minute).'));
     }

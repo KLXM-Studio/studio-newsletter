@@ -322,6 +322,7 @@ final class Repermit
      */
     public static function start(int $id, bool $unknownOk, string $by): ?string
     {
+        if ($err = Newsletter::imprintBlocked()) return $err;   // ohne Impressum der Website kein Versand
         $a = self::find($id);
         if (!$a || $a['status'] !== 'draft') return __('Diese Aktion läuft bereits oder ist beendet.');
         if (!(int) self::db()->fetchValue('SELECT COUNT(*) FROM newsletter_repermit_entries WHERE action_id = ? AND state = \'open\'', [$id])) return __('Noch keine Adressen übernommen.');
@@ -337,6 +338,7 @@ final class Repermit
     /** Erinnerung (höchstens eine je Aktion) an alle, die noch nicht geantwortet haben und die erste Mail bekommen haben */
     public static function remind(int $id): ?string
     {
+        if ($err = Newsletter::imprintBlocked()) return $err;
         $a = self::find($id);
         if (!$a || $a['status'] !== 'running') return __('Die Aktion läuft nicht.');
         if (!(int) $a['reminder']) return __('Für diese Aktion ist keine Erinnerung vorgesehen.');
@@ -362,13 +364,16 @@ final class Repermit
         $throttle = new Throttle([], max(0, $budget));
         $processor = new Processor(new Repo(), Newsletter::policy());
         $until = microtime(true) + 45;
+        // Ohne Impressum der Website: Fristen und Zustände weiter pflegen, aber keine Bitten versenden
+        $blocked = Newsletter::imprintBlocked();
+        if ($blocked !== null) $log($blocked);
         foreach ($actions as $a) {
             self::sync($a);
             if ((int) $a['reminder'] && (int) $a['reminder_days'] > 0 && !$a['reminded_at'] && strtotime((string) $a['started_at']) + (int) $a['reminder_days'] * 86400 <= time()) {
                 self::remind((int) $a['id']);
                 $log("Altbestand {$a['id']}: Erinnerung vorgemerkt");
             }
-            if ($budget <= 0 || microtime(true) > $until) continue;
+            if ($blocked !== null || $budget <= 0 || microtime(true) > $until) continue;
             $rows = $db->fetchAll('SELECT * FROM newsletter_repermit_entries WHERE action_id = ? AND state = \'open\' AND (mail = \'queued\' OR remind = \'queued\') ORDER BY id LIMIT ' . ($budget * 4), [(int) $a['id']]);
             if (!$rows) continue;
             $pick = array_flip($throttle->pick(array_map(fn($r) => ['id' => (int) $r['id'], 'domain' => (string) $r['domain']], $rows)));

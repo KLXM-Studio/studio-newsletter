@@ -23,12 +23,15 @@ final class Campaigns
     /** Fehlversuche je Nachricht (vorübergehende Fehler des Kontos), danach failed */
     private const ATTEMPTS = 3;
 
-    public static function schedule(int $id, ?string $at = null): void
+    /** Planen bzw. fortsetzen – ohne Impressum der Website (Core\Mail\Imprint) gesperrt: Meldung, sonst null */
+    public static function schedule(int $id, ?string $at = null): ?string
     {
+        if ($err = Newsletter::imprintBlocked()) return $err;
         $c = Repo::campaign($id);
-        if (!$c || !in_array($c['status'], ['draft', 'scheduled', 'paused'], true)) return;
-        if ($c['status'] === 'paused') { Repo::saveCampaign($id, ['status' => 'sending']); return; }
+        if (!$c || !in_array($c['status'], ['draft', 'scheduled', 'paused'], true)) return null;
+        if ($c['status'] === 'paused') { Repo::saveCampaign($id, ['status' => 'sending']); return null; }
         Repo::saveCampaign($id, ['status' => 'scheduled', 'scheduled_at' => $at ?: Repo::now()]);
+        return null;
     }
 
     public static function pause(int $id): void
@@ -78,6 +81,11 @@ final class Campaigns
     {
         $log ??= fn(string $m) => null;
         $stat = ['started' => 0, 'sent' => 0, 'failed' => 0, 'done' => 0];
+        // Ohne Impressum (Grundeinstellungen → E-Mail-Versand bzw. Impressum-Seite) kein Massenversand – Ausgaben warten
+        if ($err = Newsletter::imprintBlocked()) {
+            if ((int) app()->db->fetchValue('SELECT COUNT(*) FROM newsletter_campaigns WHERE status IN (\'scheduled\', \'sending\')')) $log($err);
+            return $stat;
+        }
         $db = app()->db;
         foreach ($db->fetchAll('SELECT * FROM newsletter_campaigns WHERE status = \'scheduled\' AND scheduled_at <= ?', [Repo::now()]) as $c) {
             $n = self::enqueue($c);

@@ -54,7 +54,8 @@ final class Sender
             $headers['X-Mailjet-TrackOpen'] = $track ? '1' : '0';
             $headers['X-Mailjet-TrackClick'] = $track ? '1' : '0';
         }
-        $o = ['purpose' => Newsletter::PURPOSE, 'html' => $m['html'], 'headers' => $headers, 'message_id' => $m['message_id'], 'keep_alive' => true];
+        // Impressum steht schon in HTML und Text (Message::imprintRow/withImprint) – der Mailer hängt es nicht noch einmal an
+        $o = ['purpose' => Newsletter::PURPOSE, 'html' => $m['html'], 'headers' => $headers, 'message_id' => $m['message_id'], 'keep_alive' => true, 'imprint' => 'included'];
         $o['via'] = $accId;   // Konto des Newsletters bzw. eigener Absender des Verteilers
         if ($m['return_path'] !== '' && $mode === 'smtp') $o['return_path'] = $m['return_path'];
         $err = Mailer::send($m['subject'], $m['text'], [$m['to']], $o);

@@ -22,6 +22,7 @@ $wording = Repermit::wording($a);
 <section class="adm-card">
   <h2><?= e(__('Altbestand für „{name}“', ['name' => (string) ($list['name'] ?? '#' . (int) $a['list_id'])])) ?> <span class="adm-badge<?= $a['status'] === 'draft' ? ' adm-badge--draft' : ($a['status'] === 'done' ? ' adm-badge--muted' : '') ?>"><?= e($label[$a['status']] ?? $a['status']) ?></span></h2>
   <p><?= e(__('Herkunft: {o}', ['o' => Repermit::originLabel((string) $a['origin'])])) ?><?php if ($a['unknown_ack'] !== ''): ?> · <span class="adm-muted"><?= e(__('trotz unbekannter Herkunft freigegeben: {who}', ['who' => $a['unknown_ack']])) ?></span><?php endif; ?></p>
+  <?php if (in_array($a['status'], ['draft', 'running'], true) && ($impErr = \Klxm\Newsletter\Newsletter::imprintBlocked())): // ohne Impressum der Website kein Versand ?><div class="adm-flash adm-flash--error" role="note"><?= e($impErr) ?></div><?php endif; ?>
   <?php if ($a['origin'] === 'unknown' && $a['status'] === 'draft'): ?>
   <div class="adm-flash adm-flash--warning nl-rp-warn" role="note"><?= icon('warning') ?> <?= e(__('Herkunft unbekannt: Wir empfehlen, diese Personen nicht anzuschreiben. Gerichte werten schon die Bitte um Bestätigung als Werbung, wenn keine Einwilligung vorlag. Besser: Entwurf verwerfen.')) ?></div>
   <?php endif; ?>

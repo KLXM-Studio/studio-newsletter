@@ -174,6 +174,11 @@ final class SelfTest
         echo "Altbestand bestätigen lassen (Repermit)\n";
         self::repermit();
 
+        if (class_exists(\Core\Mail\Imprint::class)) {   // Kern mit Impressum für E-Mails
+            echo "Impressum der Website in jeder Mail (Core\\Mail\\Imprint)\n";
+            self::imprint();
+        }
+
         echo "\n  " . self::$ok . ' Prüfungen bestanden, ' . count(self::$fails) . " fehlgeschlagen\n";
         return self::$fails ? 1 : 0;
     }
@@ -431,6 +436,93 @@ final class SelfTest
             foreach ($lists as $l) Repo::deleteList($l);
             foreach (['gesperrt', 'neu4', 'aktiv', 'neu1', 'neu2', 'neu3', 'neu5', 'andere', 'ab', 'unbekannt'] as $n) app()->db->query('DELETE FROM newsletter_suppressions WHERE email_hash = ?', [Address::hash($mail($n), $key)]);
             app()->db->query('DELETE FROM newsletter_events WHERE email LIKE ? OR (subscriber_id = 0 AND diagnostic LIKE ?)', [$tag . '-%', '%User unknown%']);
+        }
+    }
+
+    /**
+     * Impressum (Core\Mail\Imprint) in Ausgabe, Bestätigung, Altbestand-Bitte und -Erinnerung, Testmail und Webversion – genau einmal,
+     * auch über den Mailer (Option 'imprint' => 'included'); ohne Impressum sind Ausgaben und Bitten gesperrt. Einstellungen werden
+     * zurückgesetzt, Testdaten entfernt, Mails nur als Datei abgelegt.
+     */
+    private static function imprint(): void
+    {
+        $s = app()->settings;
+        $keys = [\Core\Mail\Imprint::SETTING, 'imprint_page', 'impressum_seite'];
+        $prev = [];
+        foreach ($keys as $k) $prev[$k] = $s->get($k);
+        $tag = 'nl-selftest-imp-' . bin2hex(random_bytes(3));
+        $mark = 'Selbsttest-Impressum GmbH';
+        $dumpDir = sys_get_temp_dir() . '/' . $tag;
+        $prevDump = \Core\Mailer::$testDump;
+        \Core\Mailer::$testDump = $dumpDir;
+        $last = function () use ($dumpDir): string {
+            $f = glob($dumpDir . '/*.eml') ?: [];
+            sort($f);
+            return $f ? quoted_printable_decode((string) file_get_contents((string) end($f))) : '';
+        };
+        $list = 0; $sid = 0; $camp = 0; $aid = 0;
+        try {
+            $s->set(\Core\Mail\Imprint::SETTING, $mark . "\nMusterweg 1, 12345 Musterstadt");
+            \Core\Mail\Imprint::flush();
+            $imp = \Core\Mail\Imprint::get();
+            $list = Repo::saveList(0, ['name' => 'Selbsttest Impressum', 'public' => false, 'footer' => 'Verein Musterstadt, Musterweg 1']);
+            $sub = Repo::upsert(['email' => $tag . '@example.org', 'name' => 'Erika', 'status' => 'pending', 'source' => 'admin']);
+            $sid = (int) $sub['id'];
+            $camp = Repo::saveCampaign(0, ['subject' => 'Impressum {name}', 'body' => '<p>Hallo {name}</p>', 'lists' => (string) $list]);
+            $c = (array) Repo::campaign($camp);
+
+            $m = Message::campaign($c, (array) Repo::find($sid));
+            self::eq('Ausgabe: Impressum im HTML (einmal), Fußtext des Verteilers bleibt', [substr_count($m['html'], $mark), str_contains($m['html'], 'Verein Musterstadt')], [1, true]);
+            self::eq('Ausgabe: Textfassung mit „-- “ und Impressum (einmal)', [str_contains($m['text'], "\n-- \n" . $imp['label']), substr_count($m['text'], $mark)], [true, 1]);
+            self::eq('Ausgabe: Link zur Impressum-Seite', $imp['url'] === '' || str_contains($m['html'], e($imp['url'])), true);
+            $res = Sender::send([$m]);
+            $eml = $last();
+            self::eq('Versand über den Mailer: Impressum genau einmal je Teil (imprint => included)', [$res[0]['ok'] ?? false, substr_count($eml, $mark)], [true, 2]);
+            $t = Campaigns::test($c, [$tag . '-test@example.org']);
+            self::eq('Testmail: Impressum genau einmal je Teil', [$t[0]['ok'] ?? false, substr_count($last(), $mark)], [true, 2]);
+            self::eq('Webversion: Impressum', substr_count(Message::web($c), $mark), 1);
+
+            Repo::update($sid, ['pending_lists' => (string) $list, 'consent_at' => Repo::now()]);
+            $mc = Message::confirm((array) Repo::find($sid), Repo::list($list));
+            self::eq('Bestätigung (Double-Opt-in): Impressum in HTML und Text', [substr_count($mc['html'], $mark), substr_count($mc['text'], $mark), str_contains($mc['text'], "\n-- \n")], [1, 1, true]);
+            self::eq('Bestätigung über den Mailer: genau einmal je Teil', [Signup::sendConfirm(['pending_lists' => (string) $list] + (array) Repo::find($sid)), substr_count($last(), $mark)], [null, 2]);
+
+            $a = ['id' => 0, 'subject' => '', 'intro' => '', 'deadline_days' => 30, 'origin' => 'consent'];
+            $mr = Message::repermit($a, ['id' => 0, 'name' => 'Erika', 'email' => $tag . '@example.org'], ['id' => 0, 'secret' => ''], Repo::list($list), false, true);
+            $me = Message::repermit($a, ['id' => 0, 'name' => 'Erika', 'email' => $tag . '@example.org'], ['id' => 0, 'secret' => ''], Repo::list($list), true, true);
+            self::eq('Altbestand-Bitte und Erinnerung: Impressum in HTML und Text', [substr_count($mr['html'], $mark), substr_count($mr['text'], $mark), substr_count($me['html'], $mark), substr_count($me['text'], $mark)], [1, 1, 1, 1]);
+
+            // Ohne Text und ohne Impressum-Seite: einzelne Mails gehen, Massenversand gesperrt
+            $s->set(\Core\Mail\Imprint::SETTING, '');
+            $s->set('imprint_page', 0);
+            $s->set('impressum_seite', 0);
+            \Core\Mail\Imprint::flush();
+            self::eq('Ohne Impressum: Sperre gemeldet', \Core\Mail\Imprint::bulkError() !== null, true);
+            self::eq('Ohne Impressum: Ausgabe lässt sich nicht starten', [Campaigns::schedule($camp) !== null, Repo::campaign($camp)['status'] ?? ''], [true, 'draft']);
+            $aid = Repermit::create($list, 'consent');
+            Repermit::import($aid, $tag . '-rp@example.org');
+            self::eq('Ohne Impressum: Altbestand-Bitte lässt sich nicht starten', [Repermit::start($aid, false, 'Selbsttest') !== null, Repermit::find($aid)['status'] ?? ''], [true, 'draft']);
+            app()->db->update('newsletter_campaigns', ['status' => 'scheduled', 'scheduled_at' => Repo::now()], 'id = :wid', ['wid' => $camp]);
+            self::eq('Ohne Impressum: geplante Ausgabe wartet (Cron versendet nichts)', [Campaigns::run()['started'], Repo::campaign($camp)['status'] ?? ''], [0, 'scheduled']);
+            app()->db->update('newsletter_campaigns', ['status' => 'draft', 'scheduled_at' => null], 'id = :wid', ['wid' => $camp]);
+            self::eq('Ohne Impressum: Bestätigung (einzelne Mail) geht trotzdem', Signup::sendConfirm(['pending_lists' => (string) $list] + (array) Repo::find($sid)), null);
+        } catch (\Throwable $e) {
+            self::eq('Impressum: ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')', false, true);
+        } finally {
+            foreach ($prev as $k => $v) $v === null ? $s->delete($k) : $s->set($k, $v);
+            \Core\Mail\Imprint::flush();
+            \Core\Mailer::$testDump = $prevDump;
+            foreach (glob($dumpDir . '/*') ?: [] as $f) @unlink($f);
+            @rmdir($dumpDir);
+            if ($aid) {
+                $rs = array_map('intval', array_column(app()->db->fetchAll('SELECT subscriber_id FROM newsletter_repermit_entries WHERE action_id = ?', [$aid]), 'subscriber_id'));
+                app()->db->query('DELETE FROM newsletter_repermit_entries WHERE action_id = ?', [$aid]);
+                app()->db->query('DELETE FROM newsletter_repermits WHERE id = ?', [$aid]);
+                foreach ($rs as $r) if ($r) Repo::deleteSubscriber($r);
+            }
+            if ($camp) Repo::deleteCampaign($camp);
+            if ($sid) { app()->db->query('DELETE FROM newsletter_events WHERE subscriber_id = ?', [$sid]); Repo::deleteSubscriber($sid); }
+            if ($list) Repo::deleteList($list);
         }
     }
 

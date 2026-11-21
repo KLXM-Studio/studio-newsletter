@@ -4,6 +4,7 @@
   <ol>
     <li><b>E-Mail-Konto:</b> Unter <b>Grundeinstellungen → E-Mail-Versand</b> ein Konto anlegen (Absender z. B. news@ihre-domain.de) und dem Zweck <b>„Newsletter versenden“</b> zuordnen.</li>
     <li><b>Newsletter → Einstellungen:</b> das E-Mail-Konto wählen – Mailjet oder eigener Server ergibt sich daraus, ebenso Mailjet-Zugang und Bounce-Postfach (aus den Zugangsdaten des Kontos), Absenderangaben für den Fuß (Name, Anschrift – Pflicht wie im Impressum) und bei Bedarf Texte der Einwilligung und der Bestätigungsmail anpassen.</li>
+    <li><b>Impressum:</b> Jede Newsletter-Mail – Ausgaben, Testmails, Bestätigungen, Bitten an den Altbestand – endet mit dem Impressum der Website aus <b>Grundeinstellungen → E-Mail-Versand → „Impressum für E-Mails“</b> und dem Link zur Impressum-Seite, zusätzlich zum Fußtext des Verteilers. Ist beides leer, lassen sich Ausgaben und Bitten an den Altbestand nicht versenden; ein Hinweis nennt dann die Stelle.</li>
     <li><b>Anmeldung auf der Website:</b> den Block <b>„Newsletter-Anmeldung“</b> auf einer Seite einfügen (Gruppe „Formulare“). Mit zwei oder mehr öffentlichen Verteilern können Besucher Themen wählen.</li>
   </ol>
   <h3>Mehrere Newsletter (Verteiler)</h3>
