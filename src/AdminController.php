@@ -448,6 +448,98 @@ final class AdminController extends \Core\Http\Controllers\Admin\AdminController
         return Response::csv('newsletter-empfaenger-' . date('Y-m-d') . '.csv', ['E-Mail', 'Name', 'Status', 'Bestätigt', 'Angelegt'], array_map('array_values', $rows));
     }
 
+    // ------------------------------------------------------------------ Altbestand bestätigen lassen (Repermit)
+
+    /** Aktion laden und Zugriff prüfen (Verteiler zugewiesen) */
+    private function repermitFor(string $id): array
+    {
+        $a = Repermit::find((int) $id) ?? throw new HttpException(404);
+        if (!Repermit::allowed($a)) throw new HttpException(403, __('Dieser Verteiler ist Ihnen nicht zugewiesen.'));
+        return $a;
+    }
+
+    public function repermits(Request $r): Response
+    {
+        $this->guard($r);
+        $lists = Repermit::lists();
+        $mine = Access::lists();
+        $names = array_column(Repo::lists(), 'name', 'id');
+        return $this->show('repermits', ['actions' => Repermit::all($mine), 'lists' => $lists, 'names' => $names, 'manager' => Access::manager(),
+            'tab' => 'repermit', 'title' => __('Altbestand')]);
+    }
+
+    /** Adressen einfügen: neue Aktion (Entwurf) oder weitere Adressen für einen Entwurf */
+    public function repermitImport(Request $r): Response
+    {
+        $this->guard($r);
+        $aid = (int) ($r->post['action_id'] ?? 0);
+        $back = $aid ? '/admin/newsletter/altbestand/' . $aid : '/admin/newsletter/altbestand';
+        if ($aid) {
+            $a = $this->repermitFor((string) $aid);
+            if ($a['status'] !== 'draft') return $this->to($back, 'error', __('Adressen lassen sich nur vor dem Versand hinzufügen.'));
+        } else {
+            $list = (int) ($r->post['list'] ?? 0);
+            if (!in_array($list, array_map('intval', array_column(Repermit::lists(), 'id')), true)) throw new HttpException(403, __('Für diesen Verteiler ist „Altbestand bestätigen lassen“ nicht eingeschaltet oder er ist Ihnen nicht zugewiesen.'));
+            $origin = (string) ($r->post['origin'] ?? '');
+            if (!in_array($origin, Repermit::ORIGINS, true)) return $this->to($back, 'error', __('Bitte die Herkunft der Adressen angeben.'));
+            if (empty($r->post['received'])) return $this->to($back, 'error', __('Bitte bestätigen, dass diese Personen den Newsletter bisher erhalten haben.'));
+            if (trim((string) ($r->post['rows'] ?? '')) === '') return $this->to($back, 'error', __('Bitte Adressen einfügen.'));
+            $aid = Repermit::create($list, $origin);
+            $back = '/admin/newsletter/altbestand/' . $aid;
+        }
+        $res = Repermit::import($aid, (string) ($r->post['rows'] ?? ''));
+        $sk = $res['skipped'];
+        return $this->to($back, $res['added'] ? 'success' : 'warning', __('{n} Adressen übernommen. Übersprungen: {b} gesperrt, {c} schon bestätigt, {d} früher abgelehnt, {u} abgemeldet, {o} andere, {x} doppelt, {i} ungültig.',
+            ['n' => fmt()->number($res['added']), 'b' => $sk['blocked'], 'c' => $sk['confirmed'], 'd' => $sk['declined'], 'u' => $sk['unsubscribed'], 'o' => $sk['other'], 'x' => $sk['duplicate'], 'i' => $sk['invalid']]));
+    }
+
+    public function repermit(Request $r, string $id, array $errors = [], array $values = [], int $status = 200): Response
+    {
+        $this->guard($r);
+        $a = $this->repermitFor($id);
+        return $this->show('repermit', ['action' => $a, 'list' => Repo::list((int) $a['list_id']), 'stats' => Repermit::stats((int) $a['id']), 'skipped' => Repermit::skipped($a),
+            'errors' => $errors, 'values' => $values ?: $a, 'tab' => 'repermit', 'title' => __('Altbestand: {name}', ['name' => (string) (Repo::list((int) $a['list_id'])['name'] ?? '')])], $status);
+    }
+
+    public function repermitAction(Request $r, string $id): Response
+    {
+        $u = $this->guard($r);
+        $a = $this->repermitFor($id);
+        $back = '/admin/newsletter/altbestand/' . (int) $a['id'];
+        $act = (string) ($r->post['_action'] ?? 'save');
+        switch ($act) {
+            case 'save':
+                $err = Repermit::saveDraft((int) $a['id'], $r->post);
+                return $err ? $this->repermit($r, $id, $err, $r->post + $a, 422) : $this->to($back, 'success', __('Gespeichert.'));
+            case 'start':
+                if (!\Core\Mail\Accounts::ready(Newsletter::accountFor((string) (Repo::list((int) $a['list_id'])['account'] ?? '')))) {
+                    return $this->to($back, 'error', __('Kein versandbereites E-Mail-Konto für den Zweck „Newsletter“ (Grundeinstellungen → E-Mail-Versand).'));
+                }
+                $err = Repermit::start((int) $a['id'], !empty($r->post['unknown_ok']), (string) ($u['name'] ?? '') ?: (string) ($u['email'] ?? ''));
+                return $err ? $this->to($back, 'error', $err) : $this->to($back, 'success', __('Versand gestartet – die Bitten gehen gedrosselt hinaus (geplante Aufgabe „Newsletter versenden“, jede Minute).'));
+            case 'remind':
+                $err = Repermit::remind((int) $a['id']);
+                return $err ? $this->to($back, 'error', $err) : $this->to($back, 'success', __('Erinnerung vorgemerkt – sie geht mit dem nächsten Lauf hinaus.'));
+            case 'finish':
+                if ($a['status'] !== 'running') return $this->to($back, 'error', __('Die Aktion läuft nicht.'));
+                $n = Repermit::finish((int) $a['id']);
+                return $this->to($back, 'success', __('Beendet. Gelöschte Adressen ohne Bestätigung: {n}.', ['n' => fmt()->number($n)]));
+            case 'discard':
+                Repermit::discard((int) $a['id']);
+                return $this->to('/admin/newsletter/altbestand', 'success', __('Entwurf verworfen, übernommene Adressen entfernt.'));
+        }
+        return $this->to($back, 'error', __('Unbekannte Aktion.'));
+    }
+
+    /** Vorschau der Bitte (Beispielwerte); ?erinnerung=1 zeigt die Erinnerung */
+    public function repermitPreview(Request $r, string $id): Response
+    {
+        $this->guard($r);
+        $a = $this->repermitFor($id);
+        $m = Message::repermit($a, ['id' => 0, 'name' => 'Erika Musterfrau', 'email' => 'erika@example.org'], ['id' => 0, 'secret' => ''], Repo::list((int) $a['list_id']), !empty($r->query['erinnerung']), true);
+        return $this->mail($m['html']);
+    }
+
     // ------------------------------------------------------------------ Verteiler
 
     public function lists(Request $r): Response

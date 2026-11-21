@@ -1,9 +1,9 @@
 <?php
 /** Ein Empfänger. @var array $sub @var list<array> $lists @var list<int> $mine @var list<array> $events @var ?string $suppressed */
-$label = ['pending' => __('unbestätigt'), 'active' => __('aktiv'), 'unsubscribed' => __('abgemeldet'), 'bounced' => $sub['bounce_reason'] === 'manual' ? __('gesperrt (von Hand)') : __('gesperrt (Rückläufer)'), 'complained' => __('gesperrt (Beschwerde)')];
+$label = ['pending' => __('unbestätigt'), 'active' => __('aktiv'), 'unsubscribed' => __('abgemeldet'), 'bounced' => $sub['bounce_reason'] === 'manual' ? __('gesperrt (von Hand)') : __('gesperrt (Rückläufer)'), 'complained' => __('gesperrt (Beschwerde)'), 'reconfirm' => __('Bestätigung ausstehend (Altbestand)')];
 $reason = ['hard' => __('Adresse existiert nicht (Hard Bounce)'), 'soft' => __('wiederholt nicht zustellbar (Soft Bounces)'), 'complaint' => __('als Spam gemeldet'), 'manual' => __('von Hand gesperrt')];
 $typeLabel = ['hard' => __('Hard Bounce'), 'soft' => __('Soft Bounce'), 'block' => __('Blockiert (Absender)'), 'complaint' => __('Beschwerde'), 'unsubscribe' => __('Abmeldung'), 'manual' => __('Von Hand gesperrt'),
-    'auto' => __('Abwesenheit'), 'delayed' => __('Verzögert'), 'unknown' => __('Unklar')];
+    'auto' => __('Abwesenheit'), 'delayed' => __('Verzögert'), 'unknown' => __('Unklar'), 'reconfirm' => __('Altbestand bestätigt')];
 $base = url('/admin/newsletter/empfaenger/' . (int) $sub['id']);
 ?>
 <section class="adm-card">
@@ -11,7 +11,7 @@ $base = url('/admin/newsletter/empfaenger/' . (int) $sub['id']);
   <dl class="adm-dl">
     <?php if ($sub['bounce_reason'] !== '' || $suppressed): ?><div><dt><?= e(__('Sperrgrund')) ?></dt><dd><?= e($reason[$sub['bounce_reason'] ?: (string) $suppressed] ?? (string) $suppressed) ?></dd></div><?php endif; ?>
     <?php if ((int) $sub['soft_count']): ?><div><dt><?= e(__('Soft Bounces')) ?></dt><dd><?= (int) $sub['soft_count'] ?> <?= e(__('aus {n} Ausgaben, seit {d}', ['n' => (int) $sub['soft_campaigns'], 'd' => fmt()->date((int) $sub['soft_first_at'])])) ?></dd></div><?php endif; ?>
-    <div><dt><?= e(__('Angelegt')) ?></dt><dd><?= e(fmt()->datetime($sub['created_at'])) ?> (<?= e(['form' => __('Formular'), 'import' => __('Import'), 'admin' => __('Verwaltung')][$sub['source']] ?? $sub['source']) ?>)</dd></div>
+    <div><dt><?= e(__('Angelegt')) ?></dt><dd><?= e(fmt()->datetime($sub['created_at'])) ?> (<?= e(['form' => __('Formular'), 'import' => __('Import'), 'admin' => __('Verwaltung'), 'legacy' => __('Altbestand')][$sub['source']] ?? $sub['source']) ?>)</dd></div>
     <?php if ($sub['confirmed_at']): ?><div><dt><?= e(__('Bestätigt')) ?></dt><dd><?= e(fmt()->datetime($sub['confirmed_at'])) ?></dd></div><?php endif; ?>
     <?php if ($sub['consent'] !== ''): ?><div><dt><?= e(__('Einwilligung')) ?></dt><dd><?= e($sub['consent']) ?><br><span class="adm-muted"><?= e(fmt()->datetime($sub['consent_at'])) ?><?= $sub['ip_hash'] !== '' ? ' · IP-Kürzel ' . e($sub['ip_hash']) : '' ?></span></dd></div><?php endif; ?>
     <?php if ($sub['unsubscribed_at']): ?><div><dt><?= e(__('Abgemeldet')) ?></dt><dd><?= e(fmt()->datetime($sub['unsubscribed_at'])) ?></dd></div><?php endif; ?>

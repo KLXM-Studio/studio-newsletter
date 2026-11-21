@@ -53,7 +53,7 @@ final class Access
     public static function subscriber(array $s): bool
     {
         if (self::manager()) return true;
-        $ids = array_merge(Repo::listIds((int) $s['id']), array_map('intval', array_filter(explode(',', (string) ($s['pending_lists'] ?? '')))));
+        $ids = array_merge(Repo::listIds((int) $s['id']), array_map('intval', array_filter(explode(',', (string) ($s['pending_lists'] ?? '')))), Repermit::pendingLists((int) $s['id']));
         return (bool) array_intersect($ids, self::lists());
     }
 

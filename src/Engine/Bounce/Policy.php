@@ -18,6 +18,7 @@ namespace Klxm\Newsletter\Engine\Bounce;
  *  delivered   Soft-Zähler zurück auf 0 (Zustellung belegt, z. B. Ereignis „sent“ eines Versanddienstes)
  *  auto, delayed, unknown  nur protokollieren
  *
+ * Status reconfirm (Altbestand, Bestätigung ausstehend) wird bei hard und unsubscribe behandelt wie pending.
  * Eingabe $sub: status, soft_count, soft_first_at (Unix-Zeit), soft_last_campaign
  * @return array{changes: array<string, mixed>, suppress: ?string, stat: ?string}
  */
@@ -32,7 +33,7 @@ final class Policy
         switch ($r->type) {
             case Result::HARD:
                 $out['stat'] = 'hard';
-                if ($status === 'active' || $status === 'pending') $out['changes'] = ['status' => 'bounced', 'bounce_reason' => 'hard'];
+                if (in_array($status, ['active', 'pending', 'reconfirm'], true)) $out['changes'] = ['status' => 'bounced', 'bounce_reason' => 'hard'];
                 $out['suppress'] = 'hard';
                 break;
             case Result::SOFT:
@@ -59,7 +60,7 @@ final class Policy
                 break;
             case Result::UNSUBSCRIBE:
                 $out['stat'] = 'unsubscribe';
-                if ($status === 'active' || $status === 'pending') $out['changes'] = ['status' => 'unsubscribed'];
+                if (in_array($status, ['active', 'pending', 'reconfirm'], true)) $out['changes'] = ['status' => 'unsubscribed'];
                 break;
             case Result::BLOCK:
                 $out['stat'] = 'block';

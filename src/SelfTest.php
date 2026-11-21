@@ -171,6 +171,9 @@ final class SelfTest
         echo "Ablauf in der Datenbank (Website „" . site()->key . "“)\n";
         self::database();
 
+        echo "Altbestand bestätigen lassen (Repermit)\n";
+        self::repermit();
+
         echo "\n  " . self::$ok . ' Prüfungen bestanden, ' . count(self::$fails) . " fehlgeschlagen\n";
         return self::$fails ? 1 : 0;
     }
@@ -284,9 +287,150 @@ final class SelfTest
             if ($ids['camp']) Repo::deleteCampaign($ids['camp']);
             if ($ids['list']) Repo::deleteList($ids['list']);
             if ($ids['list2']) Repo::deleteList($ids['list2']);
-            app()->db->query('DELETE FROM newsletter_suppressions WHERE email_hash IN (?, ?)', [Address::hash($email, $key), Address::hash('x' . $email, $key)]);
+            // erst löschen (löschen trägt Sperrgründe in die Sperrliste ein), dann die Sperrliste räumen
             if ($x = Repo::byEmail('x' . $email)) Repo::deleteSubscriber((int) $x['id']);
+            app()->db->query('DELETE FROM newsletter_suppressions WHERE email_hash IN (?, ?)', [Address::hash($email, $key), Address::hash('x' . $email, $key)]);
             app()->db->query('DELETE FROM newsletter_events WHERE email LIKE ? OR (subscriber_id = 0 AND diagnostic LIKE ?)', ['%nl-selftest-%', '%User unknown%']);
+        }
+    }
+
+    /**
+     * Altbestand: Einfügen mit Herkunft, Überspringen (gesperrt, bestätigt, abgemeldet, doppelt, ungültig, früher abgelehnt),
+     * keine Ausgaben an Ausstehende, Versand über die Engine (Mails als Datei abgelegt), Ja/Nein/One-Click, Rückläufer,
+     * höchstens eine Erinnerung, Frist → Löschen mit anonymen Zählern. Alle Testdaten werden entfernt.
+     */
+    private static function repermit(): void
+    {
+        $key = Newsletter::key();
+        $tag = 'nl-selftest-rp-' . bin2hex(random_bytes(3));
+        $mail = fn(string $n) => $tag . '-' . $n . '@example.org';
+        $lists = [];
+        $actions = [];
+        $dumpDir = sys_get_temp_dir() . '/' . $tag;
+        $prevDump = \Core\Mailer::$testDump;
+        \Core\Mailer::$testDump = $dumpDir;
+        $dumped = fn() => count(glob($dumpDir . '/*.eml') ?: []);
+        $sub = fn(string $n) => Repo::byEmail($mail($n));
+        try {
+            $lists['rp'] = Repo::saveList(0, ['name' => 'Selbsttest Altbestand', 'public' => false, 'footer' => 'Verein Musterstadt, Musterweg 1']);
+            $lists['other'] = Repo::saveList(0, ['name' => 'Selbsttest Andere', 'public' => false]);
+            self::eq('Funktion je Verteiler standardmäßig aus', (int) (Repo::list($lists['rp'])['repermit'] ?? 1), 0);
+            Repo::saveList($lists['rp'], ['name' => 'Selbsttest Altbestand', 'public' => false, 'footer' => 'Verein Musterstadt, Musterweg 1', '_editors' => 1, 'repermit' => 1]);
+            Repo::saveList($lists['rp'], ['name' => 'Selbsttest Altbestand', 'public' => false, 'footer' => 'Verein Musterstadt, Musterweg 1']);
+            self::eq('Verteiler-Formular schaltet ein, anderes Speichern behält es', (int) (Repo::list($lists['rp'])['repermit'] ?? 0), 1);
+
+            // Ausgangslage: schon bestätigt, gesperrt, abgemeldet, aktiv in anderem Verteiler
+            $s = Repo::upsert(['email' => $mail('aktiv'), 'status' => 'active', 'source' => 'admin']);
+            Repo::setLists((int) $s['id'], [$lists['rp']]);
+            Repo::suppressHash(Address::hash($mail('gesperrt'), $key), 'hard');
+            Repo::upsert(['email' => $mail('ab'), 'status' => 'unsubscribed', 'source' => 'admin']);
+            $o = Repo::upsert(['email' => $mail('andere'), 'status' => 'active', 'source' => 'form', 'consent' => 'Formular alt']);
+            Repo::setLists((int) $o['id'], [$lists['other']]);
+
+            $actions[] = $aid = Repermit::create($lists['rp'], 'consent');
+            $rows = "E-Mail;Name\n" . implode("\n", [$mail('neu1') . ';Erika', strtoupper($mail('neu2')), $mail('neu3') . ";Max", $mail('neu4'), $mail('neu5'), $mail('neu1'),
+                'keine-adresse', $mail('aktiv'), $mail('gesperrt'), $mail('ab'), $mail('andere') . ';Andrea']);
+            $res = Repermit::import($aid, $rows);
+            self::eq('Einfügen: übernommen und übersprungen (Kopfzeile erkannt)', [$res['added'], $res['skipped']['duplicate'], $res['skipped']['invalid'], $res['skipped']['confirmed'], $res['skipped']['blocked'], $res['skipped']['unsubscribed']],
+                [6, 1, 1, 1, 1, 1]);
+            self::eq('Neue Adressen: Status „Bestätigung ausstehend“, Herkunft Altbestand, in keinem Verteiler', [$sub('neu1')['status'] ?? '', $sub('neu1')['source'] ?? '', $sub('neu1')['name'] ?? '', Repo::listIds((int) ($sub('neu1')['id'] ?? 0))],
+                ['reconfirm', 'legacy', 'Erika', []]);
+            self::eq('Aktiv in anderem Verteiler: bleibt aktiv, Einwilligung unverändert', [$sub('andere')['status'] ?? '', $sub('andere')['consent'] ?? ''], ['active', 'Formular alt']);
+            self::eq('Zweites Einfügen derselben Adressen: alle übersprungen', Repermit::import($aid, $mail('neu1') . "\n" . $mail('andere'))['added'], 0);
+
+            // Keine regulären Ausgaben an Ausstehende
+            self::eq('Ausgabe an den Verteiler: nur bestätigte Empfänger', Campaigns::audience([$lists['rp']]), 1);
+
+            // Entwurf: Texte prüfen
+            self::eq('Einleitung mit Link abgelehnt', array_keys(Repermit::saveDraft($aid, ['subject' => 'Weiter dabei?', 'intro' => 'Mehr unter https://example.org', 'deadline_days' => 30])), ['intro']);
+            self::eq('Frist außerhalb 7–90 Tage abgelehnt', array_keys(Repermit::saveDraft($aid, ['deadline_days' => 3])), ['deadline_days']);
+            self::eq('Entwurf gespeichert (Erinnerung von Hand)', Repermit::saveDraft($aid, ['subject' => 'Weiter dabei bei {list}?', 'intro' => '', 'deadline_days' => 30, 'reminder' => 1, 'reminder_days' => 0]), []);
+            $a = (array) Repermit::find($aid);
+            $e1 = (array) app()->db->fetch('SELECT * FROM newsletter_repermit_entries WHERE action_id = ? AND subscriber_id = ?', [$aid, (int) $sub('neu1')['id']]);
+            $m = Message::repermit($a, (array) $sub('neu1'), $e1, Repo::list($lists['rp']));
+            self::eq('Bitte: Betreff, Name, Knöpfe Ja/Nein, Fußzeile des Verteilers, kein Werbeinhalt', [$m['subject'], str_contains($m['text'], 'Hallo Erika'), str_contains($m['html'], e(Repermit::url($e1, 'ja'))),
+                str_contains($m['html'], e(Repermit::url($e1, 'nein'))), str_contains($m['html'], 'Verein Musterstadt'), str_contains($m['html'], 'data-nl-i')],
+                ['Weiter dabei bei Selbsttest Altbestand?', true, true, true, true, false]);
+            self::eq('Bitte: One-Click auf die Seite der Bitte, Bezug für Rückläufer', [$m['headers']['List-Unsubscribe'], $m['headers']['List-Unsubscribe-Post'], Ref::find(Ref::HEADER . ': ' . $m['headers'][Ref::HEADER], $key), Ref::find('Message-ID: <' . $m['message_id'] . '>', $key)],
+                ['<' . Repermit::url($e1) . '>', 'List-Unsubscribe=One-Click', ['campaign' => 0, 'subscriber' => (int) $sub('neu1')['id']], ['campaign' => 0, 'subscriber' => (int) $sub('neu1')['id']]]);
+
+            // Herkunft „unbekannt“: Versand nur mit ausdrücklicher Bestätigung
+            $actions[] = $uid = Repermit::create($lists['rp'], 'unknown');
+            Repermit::import($uid, $mail('unbekannt'));
+            self::eq('Herkunft unbekannt: ohne Bestätigung kein Versand', [Repermit::start($uid, false, 'Selbsttest') !== null, Repermit::find($uid)['status'] ?? ''], [true, 'draft']);
+            self::eq('Herkunft unbekannt: mit Bestätigung, vermerkt', [Repermit::start($uid, true, 'Selbsttest'), str_starts_with((string) (Repermit::find($uid)['unknown_ack'] ?? ''), 'Selbsttest')], [null, true]);
+            Repermit::finish($uid);
+            self::eq('Beenden ohne Antwort: Adresse gelöscht', $sub('unbekannt'), null);
+
+            // Versand
+            self::eq('Start: Wortlaut mit SHA-256 festgehalten, Frist gesetzt', [Repermit::start($aid, false, 'Selbsttest'), strlen((string) Repermit::find($aid)['request_hash']), (string) Repermit::find($aid)['request_hash'] === hash('sha256', (string) Repermit::find($aid)['request_text']),
+                abs(strtotime((string) Repermit::find($aid)['deadline_at']) - (time() + 30 * 86400)) < 60], [null, 64, true, true]);
+            $before = $dumped();
+            $run = Repermit::run(100);
+            self::eq('Versand über die Engine: 6 Bitten, als Datei abgelegt', [$run['sent'], $dumped() - $before, Repermit::stats($aid)['sent']], [6, 6, 6]);
+            self::eq('Zweiter Lauf versendet nichts doppelt', Repermit::run(100)['sent'], 0);
+
+            // Antworten
+            $tok = fn(string $n) => (array) Repermit::entry((int) app()->db->fetchValue('SELECT id FROM newsletter_repermit_entries WHERE action_id = ? AND subscriber_id = ?', [$aid, (int) ($sub($n)['id'] ?? 0)]));
+            $t1 = Repermit::token($tok('neu1'));
+            self::eq('Falsches Token', Repermit::fromToken(substr($t1, 0, -1) . (str_ends_with($t1, 'a') ? 'b' : 'a')), null);
+            self::eq('Ja: aktiv, im Verteiler, Nachweis mit Herkunft und Hash', [Repermit::confirm((array) Repermit::fromToken($t1), '127.0.0.1'), $sub('neu1')['status'] ?? '', Repo::listIds((int) $sub('neu1')['id']),
+                str_contains((string) $sub('neu1')['consent'], substr((string) Repermit::find($aid)['request_hash'], 0, 16)), str_contains((string) $sub('neu1')['consent'], lt('früher eingewilligt, ohne Nachweis')), (string) $sub('neu1')['ip_hash'] !== '', (bool) $sub('neu1')['confirmed_at']],
+                ['ok', 'active', [$lists['rp']], true, true, true, true]);
+            self::eq('Ja zweimal geklickt', Repermit::confirm($tok('neu1'), '127.0.0.1'), 'already');
+            $andere = Repo::listIds((int) $sub('andere')['id']);
+            self::eq('Ja (schon aktiv in anderem Verteiler): Verteiler dazu, alte Einwilligung bleibt', [Repermit::confirm($tok('andere'), '127.0.0.1'), count(Repo::listIds((int) $sub('andere')['id'])) - count($andere), $sub('andere')['consent'] ?? '', str_contains((string) $sub('andere')['note'], 'Altbestand')],
+                ['ok', 1, 'Formular alt', true]);
+            self::eq('Nein: abgemeldet, nicht im Verteiler', [Repermit::decline($tok('neu2')), $sub('neu2')['status'] ?? '', Repo::listIds((int) $sub('neu2')['id'])], ['ok', 'unsubscribed', []]);
+            self::eq('One-Click im E-Mail-Programm = Nein', [Repermit::decline($tok('neu3'), 'oneclick'), $sub('neu3')['status'] ?? ''], ['ok', 'unsubscribed']);
+            // Rückläufer (Hard Bounce mit Bezug) → unzustellbar
+            $m4 = Message::repermit((array) Repermit::find($aid), (array) $sub('neu4'), $tok('neu4'), Repo::list($lists['rp']));
+            (new Processor(new Repo(), Newsletter::policy()))->apply(Parser::parse(self::dsn('', $mail('neu4'), '5.1.1', 'smtp; 550 5.1.1 User unknown', 'X-Newsletter-Ref: ' . $m4['ref']), $key), time());
+            Repermit::run(0);
+            self::eq('Hard Bounce: gesperrt, als unzustellbar gezählt', [$sub('neu4')['status'] ?? '', Repermit::stats($aid)['bounced']], ['bounced', 1]);
+            self::eq('Ausgabe an den Verteiler: jetzt 3 (zwei bestätigt)', Campaigns::audience([$lists['rp']]), 3);
+
+            // Erinnerung höchstens einmal, nur an Offene
+            $before = $dumped();
+            self::eq('Erinnerung vorgemerkt', Repermit::remind($aid), null);
+            self::eq('Erinnerung geht nur an Offene (1)', [Repermit::run(100)['sent'], $dumped() - $before], [1, 1]);
+            self::eq('Zweite Erinnerung abgelehnt', Repermit::remind($aid) !== null, true);
+            $mr = Message::repermit((array) Repermit::find($aid), (array) $sub('neu5'), $tok('neu5'), Repo::list($lists['rp']), true);
+            self::eq('Erinnerung: eigener Betreff und eigene Message-ID', [str_starts_with($mr['subject'], lt('Erinnerung:')), $mr['message_id'] !== $m4['message_id'] && str_contains($mr['message_id'], 'e@')], [true, true]);
+
+            // Früher abgelehnt: neuer Import überspringt
+            $actions[] = $aid2 = Repermit::create($lists['rp'], 'consent');
+            self::eq('Neuer Import: früher abgelehnt und schon bestätigt übersprungen', [Repermit::import($aid2, $mail('neu2') . "\n" . $mail('neu1'))['skipped']['declined'], Repermit::skipped((array) Repermit::find($aid2))['confirmed']], [1, 1]);
+            Repermit::discard($aid2);
+            self::eq('Entwurf verworfen', Repermit::find($aid2), null);
+
+            // Frist abgelaufen → automatisch beendet, Unbestätigte gelöscht, Zähler bleiben
+            app()->db->update('newsletter_repermits', ['deadline_at' => date('Y-m-d H:i:s', time() - 60)], 'id = :wid', ['wid' => $aid]);
+            $openEntry = $tok('neu5');
+            Repermit::run(100);
+            $st = Repermit::stats($aid);
+            self::eq('Frist: beendet, Unbestätigte und Unzustellbare gelöscht', [Repermit::find($aid)['status'] ?? '', $sub('neu5'), $sub('neu4')], ['done', null, null]);
+            self::eq('Frist: anonyme Zähler bleiben', [$st['total'], $st['confirmed'], $st['declined'], $st['bounced'], $st['expired'], $st['open']], [6, 2, 2, 1, 1, 0]);
+            self::eq('Frist: Einträge ohne Bezug zur Person', (int) app()->db->fetchValue('SELECT COUNT(*) FROM newsletter_repermit_entries WHERE action_id = ? AND state IN (\'expired\', \'bounced\') AND (subscriber_id > 0 OR email_hash <> \'\')', [$aid]), 0);
+            self::eq('Frist: Gesperrte bleiben als Prüfsumme auf der Sperrliste', Repo::suppressed($mail('neu4')), 'hard');
+            self::eq('Frist: Bestätigte und Abgemeldete bleiben', [$sub('neu1')['status'] ?? '', $sub('neu2')['status'] ?? ''], ['active', 'unsubscribed']);
+            self::eq('Nach der Frist: Link ungültig', Repermit::confirm((array) Repermit::entry((int) $openEntry['id']), '127.0.0.1'), 'invalid');
+        } catch (\Throwable $e) {
+            self::eq('Altbestand: ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')', false, true);
+        } finally {
+            \Core\Mailer::$testDump = $prevDump;
+            foreach (glob($dumpDir . '/*') ?: [] as $f) @unlink($f);
+            @rmdir($dumpDir);
+            $subs = array_map('intval', array_column(app()->db->fetchAll('SELECT id FROM newsletter_subscribers WHERE email LIKE ?', [$tag . '-%']), 'id'));
+            if ($subs) app()->db->query('DELETE FROM newsletter_events WHERE subscriber_id IN (' . implode(',', $subs) . ')');
+            foreach ($subs as $sid) Repo::deleteSubscriber($sid);
+            foreach ($actions as $aid) {
+                app()->db->query('DELETE FROM newsletter_repermit_entries WHERE action_id = ?', [$aid]);
+                app()->db->query('DELETE FROM newsletter_repermits WHERE id = ?', [$aid]);
+            }
+            foreach ($lists as $l) Repo::deleteList($l);
+            foreach (['gesperrt', 'neu4', 'aktiv', 'neu1', 'neu2', 'neu3', 'neu5', 'andere', 'ab', 'unbekannt'] as $n) app()->db->query('DELETE FROM newsletter_suppressions WHERE email_hash = ?', [Address::hash($mail($n), $key)]);
+            app()->db->query('DELETE FROM newsletter_events WHERE email LIKE ? OR (subscriber_id = 0 AND diagnostic LIKE ?)', [$tag . '-%', '%User unknown%']);
         }
     }
 

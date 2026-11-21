@@ -17,6 +17,7 @@ use Core\SpamGuard;
  *  GET  /newsletter/bestaetigen/{token}  Double-Opt-in
  *  GET  /newsletter/abmelden/{token}     Seite mit Knopf (Link-Scanner melden so niemanden ab)
  *  POST /newsletter/abmelden/{token}     Abmelden – auch One-Click aus dem E-Mail-Programm (RFC 8058, ohne Sitzung)
+ *  GET  /newsletter/altbestand/{token}   Bestätigungsbitte an den Altbestand: Seite mit „Ja“/„Nein“; POST antwortet (auch One-Click = Nein)
  *  GET  /newsletter/ausgabe/{token}      Webversion einer versendeten Ausgabe (ohne persönliche Angaben)
  *  POST /newsletter/hook/mailjet/{token} Webhook von Mailjet (Token in der Adresse)
  */
@@ -112,6 +113,52 @@ final class SiteController
             return $this->page(lt('Abgemeldet'), lt('Erledigt. Andere Newsletter erhalten Sie weiterhin – über den Link in der nächsten Ausgabe können Sie auch diese abbestellen.'));
         }
         return $this->page(lt('Abgemeldet'), lt('Sie wurden abgemeldet und erhalten keinen Newsletter mehr.'));
+    }
+
+    /** Bestätigungsbitte an den Altbestand: Seite mit den Knöpfen „Ja“ und „Nein“ (GET ändert nichts) */
+    public function repermitForm(Request $r, string $token): Response
+    {
+        $this->guard($r);
+        $e = Repermit::fromToken($token);
+        if (!$e) return $this->page(lt('Link ungültig'), lt('Dieser Link ist ungültig.'), 404);
+        $a = Repermit::find((int) $e['action_id']);
+        $list = $a ? Repo::list((int) $a['list_id']) : null;
+        $sub = Repo::find((int) $e['subscriber_id']);
+        if ($e['state'] === 'confirmed') return $this->page(lt('Bestätigt'), lt('Vielen Dank! Sie haben bereits bestätigt und erhalten den Newsletter weiterhin.'));
+        if ($e['state'] === 'declined') return $this->page(lt('Abgemeldet'), lt('Sie haben sich bereits abgemeldet und erhalten diesen Newsletter nicht mehr.'));
+        if ($e['state'] !== 'open' || !$a || $a['status'] !== 'running' || !$sub) {
+            return $this->page(lt('Link abgelaufen'), lt('Die Frist für diese Bestätigung ist abgelaufen. Wenn Sie den Newsletter erhalten möchten, melden Sie sich bitte auf unserer Website neu an.'), 410);
+        }
+        $answer = (string) ($r->query['antwort'] ?? '');
+        return $this->page(lt('Newsletter weiter erhalten?'), lt('Möchten Sie den Newsletter „{list}“ an {email} weiter erhalten?', ['list' => (string) ($list['name'] ?? ''), 'email' => self::mask((string) $sub['email'])]),
+            200, 'repermit', ['action' => url(Newsletter::BASE . '/altbestand/' . $token), 'answer' => in_array($answer, ['ja', 'nein'], true) ? $answer : '',
+                'deadline' => fmt()->date((string) $a['deadline_at'], 'long')]);
+    }
+
+    /** Antwort (POST): answer=ja|nein – auch One-Click aus dem E-Mail-Programm (RFC 8058) = Nein */
+    public function repermitAnswer(Request $r, string $token): Response
+    {
+        $this->guard($r);
+        $e = Repermit::fromToken($token);
+        $oneClick = ($r->post['List-Unsubscribe'] ?? '') === 'One-Click';
+        if (!$e) return $oneClick ? new Response('', 404) : $this->page(lt('Link ungültig'), lt('Dieser Link ist ungültig.'), 404);
+        if ($oneClick) {
+            Repermit::decline($e, 'oneclick');
+            return new Response('', 200, ['Content-Type' => 'text/plain']);
+        }
+        $answer = (string) ($r->post['answer'] ?? '');
+        if ($answer === 'ja') {
+            return match (Repermit::confirm($e, $r->ip())) {
+                'ok', 'already' => $this->page(lt('Vielen Dank!'), lt('Sie erhalten den Newsletter weiterhin. Abmelden können Sie sich jederzeit über den Link am Ende jeder Ausgabe.')),
+                'expired' => $this->page(lt('Link abgelaufen'), lt('Die Frist für diese Bestätigung ist abgelaufen. Wenn Sie den Newsletter erhalten möchten, melden Sie sich bitte auf unserer Website neu an.'), 410),
+                default => $this->page(lt('Link ungültig'), lt('Dieser Link ist ungültig.'), 404),
+            };
+        }
+        if ($answer === 'nein') {
+            return Repermit::decline($e) === 'invalid' ? $this->page(lt('Link ungültig'), lt('Dieser Link ist ungültig.'), 404)
+                : $this->page(lt('Abgemeldet'), lt('Erledigt. Sie erhalten diesen Newsletter nicht mehr.'));
+        }
+        return $this->page(lt('Nichts ausgewählt'), lt('Bitte wählen Sie „Ja“ oder „Nein“.'), 422);
     }
 
     public function web(Request $r, string $token): Response

@@ -66,6 +66,52 @@ final class Message
         return $m + ['via' => (string) ($list['account'] ?? '')];
     }
 
+    /**
+     * Bestätigungsbitte an den Altbestand (Repermit): feste neutrale Vorlage im Design des Verteilers, ohne Werbeinhalt –
+     * vom Design bleiben nur Logo, Trenner, Abstände und der Fußtext. Knöpfe „Ja“/„Nein“ führen auf eine Seite mit Knopf
+     * (ein Link allein ändert nichts); „Nein“ und die Ein-Klick-Abmeldung des E-Mail-Programms lehnen ab.
+     * $preview: Beispielwerte und „#“-Links (Verwaltung). Die Message-ID ist je Bitte und Erinnerung eindeutig.
+     */
+    public static function repermit(array $a, array $sub, array $entry, ?array $list, bool $reminder = false, bool $preview = false): array
+    {
+        $w = Repermit::wording($a, $reminder);
+        $deadline = (string) ($a['deadline_at'] ?? '') ?: date('Y-m-d H:i:s', time() + max(7, (int) ($a['deadline_days'] ?? Repermit::DEADLINE)) * 86400);
+        $vars = ['name' => trim((string) ($sub['name'] ?? '')), 'site' => self::siteName(), 'list' => (string) ($list['name'] ?? lt('Newsletter')),
+            'date' => fmt()->date($deadline, 'long')];
+        $yes = $preview ? '#' : Repermit::url($entry, 'ja');
+        $no = $preview ? '#' : Repermit::url($entry, 'nein');
+        $subject = Template::fill($w['subject'], $vars);
+        $s = self::applyList(Design::forList($list)['s'], $list);
+        $s['header_blocks'] = array_values(array_filter(Design::headerBlocks($s), fn($b) => in_array($b['type'], ['logo', 'divider', 'spacer'], true)));
+        $s['footer_blocks'] = array_values(array_filter(Design::footerBlocks($s), fn($b) => in_array($b['type'], ['legal', 'divider', 'spacer'], true)));
+        $s['blocks_set'] = true;
+        $font = Design::FONTS[$s['font']] ?? Design::FONTS['system'];
+        $rows = '';
+        $text = [];
+        foreach ($w['paragraphs'] as $p) {
+            if ($p === '{buttons}') {
+                $rows .= View::row('<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 12px 10px 0">' . View::button(lt('Ja, weiter erhalten'), $yes, $s, $font)
+                    . '</td><td style="padding:0 0 10px">' . View::button(lt('Nein, abmelden'), $no, $s, $font, 'left', 'outline') . '</td></tr></table>', '8px 36px 16px');
+                $text[] = lt('Ja, weiter erhalten') . ":\n" . $yes . "\n\n" . lt('Nein, abmelden') . ":\n" . $no;
+                continue;
+            }
+            // ohne Namen keine Anrede mit Platzhalter („Hallo ,“)
+            $p = $p === lt('Hallo {name},') && $vars['name'] === '' ? lt('Guten Tag,') : Template::fill($p, $vars);
+            $text[] = $p;
+            $rows .= '<tr><td class="nl-pad nl-body" style="padding:8px 36px;font-family:' . $font . ';font-size:16px;line-height:1.6;color:' . e($s['text']) . '">' . nl2br(e($p)) . '</td></tr>';
+        }
+        $html = self::layout(['subject' => $subject, 'preheader' => '', 'content' => $rows, 'unsubscribe' => $no, 'webversion' => '', 'test' => false], $s, $list,
+            ['site' => $vars['site'], 'name' => $vars['name'], 'unsubscribe' => $no, 'webversion' => ''], $preview);
+        $m = self::envelope($subject, $html, 0, $sub, $preview ? '' : $no);
+        $m['text'] = implode("\n\n", $text);
+        if (!$preview && (int) ($sub['id'] ?? 0) > 0) {
+            // Ein-Klick (RFC 8058) auf die Seite der Bitte: POST mit List-Unsubscribe=One-Click lehnt ab
+            $m['headers']['List-Unsubscribe'] = '<' . Repermit::url($entry) . '>';
+            $m['message_id'] = (string) preg_replace('~@~', '.rp' . (int) $a['id'] . ($reminder ? 'e' : '') . '@', $m['message_id'], 1);
+        }
+        return $m + ['via' => (string) ($list['account'] ?? '')];
+    }
+
     /** HTML für die Webversion (ohne persönliche Angaben) */
     public static function web(array $c): string
     {

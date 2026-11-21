@@ -21,12 +21,14 @@ use Klxm\Newsletter\Engine\Store;
  *  newsletter_queue              Warteschlange je Ausgabe und Empfänger (queued|sent|failed|skipped), Domain für die Drosselung
  *  newsletter_events             Rückläufer und Ereignisse (Protokoll, Aufbewahrung einstellbar)
  *  newsletter_suppressions       Sperrliste – nur HMAC der Adresse, bleibt auch nach dem Löschen eines Empfängers
+ *  newsletter_repermits(_entries) Altbestand bestätigen lassen (Repermit)
  *
  * Zugleich der Speicher der Engine (Engine\Store) für Rückläufer.
  */
 final class Repo implements Store
 {
-    public const STATUSES = ['pending', 'active', 'unsubscribed', 'bounced', 'complained'];
+    /** reconfirm = Altbestand, Bestätigung ausstehend (Repermit) – in keinem Verteiler, erhält keine Ausgaben */
+    public const STATUSES = ['pending', 'active', 'unsubscribed', 'bounced', 'complained', 'reconfirm'];
     public const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'sending', 'paused', 'sent', 'cancelled'];
     public const STATS = ['hard', 'soft', 'block', 'complaint', 'unsubscribe'];
 
@@ -43,6 +45,7 @@ final class Repo implements Store
                 ->column('color', 'string', ['length' => 7, 'default' => ''])
                 ->column('design_id', 'int', ['default' => 0])
                 ->column('editors', 'text')
+                ->column('repermit', 'bool', ['default' => false])
                 ->column('sort', 'int', ['default' => 0])
                 ->column('created_at', 'datetime'),
             'newsletter_subscribers' => fn(Table $t) => $t->id()
@@ -110,6 +113,7 @@ final class Repo implements Store
                 ->index('subscriber_id')->index('campaign_id')->index('created_at'),
             ...Design::table(),
             ...Templates::table(),
+            ...Repermit::tables(),
             'newsletter_suppressions' => fn(Table $t) => $t->id()
                 ->column('email_hash', 'string', ['length' => 64, 'null' => false])
                 ->column('reason', 'string', ['length' => 12, 'null' => false])
@@ -152,7 +156,9 @@ final class Repo implements Store
             'design_id' => array_key_exists('design_id', $v) ? max(0, (int) $v['design_id']) : (int) (self::list($id)['design_id'] ?? 0),
             'editors' => isset($v['_editors'])   // nur das Verteiler-Formular setzt die Zuweisung, andere Aufrufe behalten sie
                 ? implode(',', array_values(array_intersect(array_map('strval', (array) ($v['editors'] ?? [])), array_keys(Access::choices()))))
-                : (string) (self::list($id)['editors'] ?? '')];
+                : (string) (self::list($id)['editors'] ?? ''),
+            // Altbestand bestätigen lassen: nur das Verteiler-Formular schaltet um (Standard aus)
+            'repermit' => isset($v['_editors']) ? (!empty($v['repermit']) ? 1 : 0) : (int) (self::list($id)['repermit'] ?? 0)];
         if ($id > 0) { self::db()->update('newsletter_lists', $data, 'id = :wid', ['wid' => $id]); return $id; }
         $data['sort'] = (int) self::db()->fetchValue('SELECT COALESCE(MAX(sort), 0) + 1 FROM newsletter_lists');
         return self::db()->insert('newsletter_lists', $data + ['created_at' => self::now()]);
@@ -229,6 +235,9 @@ final class Repo implements Store
         self::db()->query('DELETE FROM newsletter_subscriber_lists WHERE subscriber_id = ?', [$id]);
         self::db()->query('DELETE FROM newsletter_queue WHERE subscriber_id = ? AND status = \'queued\'', [$id]);
         self::db()->query('UPDATE newsletter_events SET email = \'\', subscriber_id = 0 WHERE subscriber_id = ?', [$id]);
+        // Altbestand: offene Bitten enden, Zähler bleiben (abgelehnte behalten die Prüfsumme für den Verteiler)
+        self::db()->query('UPDATE newsletter_repermit_entries SET state = CASE WHEN state = \'open\' THEN \'expired\' ELSE state END, subscriber_id = 0,
+            email_hash = CASE WHEN state = \'declined\' THEN email_hash ELSE \'\' END, ip_hash = \'\' WHERE subscriber_id = ?', [$id]);
         self::db()->query('DELETE FROM newsletter_subscribers WHERE id = ?', [$id]);
     }
 
@@ -242,7 +251,8 @@ final class Repo implements Store
         if (isset($f['only'])) {   // Redaktion: nur Empfänger dieser Verteiler (auch unbestätigte, die dort angemeldet werden wollen)
             $in = implode(',', array_map('intval', (array) $f['only'])) ?: '0';
             $or = implode(' OR ', array_map(fn($i) => "(',' || s.pending_lists || ',') LIKE '%," . (int) $i . ",%'", (array) $f['only'])) ?: '0';
-            $where[] = "(s.id IN (SELECT subscriber_id FROM newsletter_subscriber_lists WHERE list_id IN ($in)) OR $or)";
+            $where[] = "(s.id IN (SELECT subscriber_id FROM newsletter_subscriber_lists WHERE list_id IN ($in)) OR $or"
+                . " OR s.id IN (SELECT e.subscriber_id FROM newsletter_repermit_entries e JOIN newsletter_repermits a ON a.id = e.action_id WHERE e.state = 'open' AND a.list_id IN ($in)))";
         }
         if (trim((string) ($f['q'] ?? '')) !== '') { $where[] = '(s.email LIKE :q OR s.name LIKE :q)'; $p['q'] = '%' . str_replace(['%', '_'], ['\%', '\_'], trim((string) $f['q'])) . '%'; }
         $w = implode(' AND ', $where);

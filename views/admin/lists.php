@@ -40,6 +40,7 @@ $form = function (array $l) use ($accounts, $designs, $choices): void {
       </div>
       <div class="nl-inline">
         <label><input type="checkbox" name="public" value="1"<?= !$id || (int) ($l['public'] ?? 1) ? ' checked' : '' ?>> <?= e(__('Öffentlich (im Anmeldeformular wählbar)')) ?></label>
+        <label><input type="checkbox" name="repermit" value="1"<?= (int) ($l['repermit'] ?? 0) ? ' checked' : '' ?>> <?= e(__('Altbestand bestätigen lassen (Newsletter → Altbestand)')) ?></label>
         <?php if ($id): ?><span class="adm-muted"><?= e(__('{n} aktiv', ['n' => fmt()->number($l['active'])])) ?></span><?php endif; ?>
         <button class="adm-btn<?= $id ? '' : ' adm-btn--primary' ?>"><?= $id ? e(__('Speichern')) : icon('plus') . ' ' . e(__('Anlegen')) ?></button>
         <?php if ($id): ?><button class="adm-btn adm-btn--ghost adm-btn--danger" name="_action" value="delete" data-confirm="<?= e(__('Verteiler löschen? Die Empfänger bleiben erhalten.')) ?>"><?= icon('trash') ?> <?= e(__('Löschen')) ?></button><?php endif; ?>

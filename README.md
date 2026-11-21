@@ -16,6 +16,7 @@ Rückläufer per Webhook). Lizenz: MIT (`LICENSE`). Paket: `klxm/studio-newslett
 | Pflichten | Abmeldelink und Ein-Klick-Abmeldung (RFC 8058, `List-Unsubscribe-Post`) in jeder Ausgabe, `List-Id`, `Precedence: bulk`, Absenderangaben im Fuß. Prüfung von SPF und DMARC der Absender-Domain. |
 | Rückläufer | **Eigener SMTP-Server:** VERP-Rücklaufadresse (`bounce+{bezug}@…`), Bounce-Postfach per IMAP alle 5 Minuten (eigener Client, keine PHP-Erweiterung `imap` nötig). **Mailjet:** Webhooks (bounce, blocked, spam, unsub, sent), auf Knopfdruck eingerichtet. Dazu Ablehnungen beim Einliefern (5xx). |
 | Regeln | Hard Bounce → sofort gesperrt. Soft Bounce → gezählt, einmal je Ausgabe; gesperrt ab 3 aus mindestens 2 Ausgaben in 60 Tagen (einstellbar), Zustellung setzt zurück. Beschwerde (Feedback-Loop/ARF, Mailjet spam) → gesperrt. Blockade (Spamverdacht, Sperrliste, SPF/DKIM/DMARC) → Empfänger bleibt, Hinweis an die Redaktion. Abwesenheitsnotizen werden ignoriert. Sperrliste nur als HMAC – bleibt nach dem Löschen eines Empfängers, ein Import trägt gesperrte Adressen nicht wieder ein. |
+| Altbestand | **Alte Listen bestätigen lassen (Re-Permission)**, je Verteiler einschaltbar (Standard aus): Adressen einfügen mit Pflichtangabe der Herkunft („früher eingewilligt, ohne Nachweis“, „Bestandskunde (§ 7 Abs. 3 UWG)“, „unbekannt“ – mit Warnung und zusätzlicher Bestätigung vor dem Versand) und Pflicht-Häkchen „haben den Newsletter bisher erhalten“. Gesperrte, schon bestätigte, abgemeldete und früher abgelehnte Adressen werden übersprungen. Status „Bestätigung ausstehend“ – keine Ausgaben. Einmalige neutrale Bitte (nur Betreff und Einleitung anpassbar, Absender/Logo/Fußzeile des Verteilers) mit „Ja, weiter erhalten“/„Nein, abmelden“, gedrosselt über dieselbe Engine (VERP, Rückläufer), höchstens eine Erinnerung. Nach der Frist (Standard 30 Tage) werden Unbestätigte gelöscht, nur anonyme Zähler bleiben. Nachweis: Zeitpunkt, IP-Kürzel, Herkunft, Verteiler, Wortlaut der Bitte mit SHA-256. Übersicht mit Fortschritt, Erinnerung, „Jetzt beenden“. |
 | Versandweg | „Mailjet (API)“ als Versandart für alle E-Mail-Konten der Website (Formulare, Bestätigungen …) – ohne `symfony/mailjet-mailer`. |
 
 Erkannt werden Zustellberichte nach RFC 3464 (Postfix, Exim, Exchange, Gmail …), Feedback-Reports nach RFC 5965 und
@@ -36,6 +37,10 @@ Cron-Zeile des Kerns (`cron:run`).
 2. Newsletter → Einstellungen: Versandart, Absenderangaben, bei eigenem SMTP Rücklaufadresse + IMAP, bei Mailjet API-Schlüssel + „Webhooks bei Mailjet einrichten“.
 3. Block „Newsletter-Anmeldung“ auf einer Seite einfügen.
 
+**Altbestand bestätigen lassen:** unter Newsletter → Verteiler beim Verteiler „Altbestand bestätigen lassen“ einschalten,
+dann Newsletter → Altbestand. Nur für Personen, die früher eingewilligt haben – keine Rechtsberatung, im Zweifel die bzw. den
+Datenschutzbeauftragten fragen (Handbuch → Newsletter).
+
 Selbsttest: `php bin/console newsletter:selftest --site=…` · Befehle: `newsletter:send`, `newsletter:bounces`, `newsletter:purge`.
 
 ## Aufbau (und Weg nach REDAXO 6)
@@ -53,6 +58,7 @@ src/Engine/            Fachlogik ohne CMS – nur PHP 8.4 (+ cURL für Mailjet)
   Throttle, Address, Template, Deliverability
   Store.php            Schnittstelle zum Speicher (Studio: Repo)
 src/*.php              Anbindung an KLXM Studio (Tabellen, Versand über Core\Mailer, Cron, Verwaltung, Website)
+  Repermit.php         Altbestand bestätigen lassen (Aktionen, Einträge, Versand, Antworten, Frist)
 ```
 
 Für eine Fassung als REDAXO-6-AddOn bleibt `src/Engine` unverändert; neu sind eine Store-Klasse (z. B. über `rex_sql`
@@ -66,6 +72,9 @@ Newsletter extension for KLXM Studio: double opt-in sign-up block, lists, issues
 sending via the core cron queue and proper bounce handling – via your **own SMTP server** (bounces via IMAP and VERP) or
 **Mailjet** (SMTP or API, bounces via webhooks). Hard bounces block immediately, soft bounces after 3 from at least 2 issues
 within 60 days, complaints (ARF/feedback loop) block, sender blocks only warn. One-click unsubscribe (RFC 8058), suppression
-list as HMAC only, SPF/DMARC check, no tracking pixel. Also registers “Mailjet (API)” as a sending method for all email accounts.
+list as HMAC only, SPF/DMARC check, no tracking pixel. **Existing lists (re-permission, per list, off by default):** import
+old addresses with a required origin (“consented earlier, without proof”, “existing customer (Sec. 7 (3) UWG)”, “unknown” – with a
+warning and an extra confirmation before sending); they get one neutral confirmation request (yes/no, at most one reminder) and
+are deleted after the period (default 30 days) unless they confirm; only anonymous counts remain. Not legal advice. Also registers “Mailjet (API)” as a sending method for all email accounts.
 The business logic in `src/Engine` has no CMS dependency so it can be reused for a REDAXO 6 add-on.
 Self-test: `php bin/console newsletter:selftest --site=…`.

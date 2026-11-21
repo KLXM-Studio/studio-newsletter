@@ -1,6 +1,6 @@
 <?php
 /** Empfänger. @var array $filter @var int $page @var array $result @var list<array> $lists */
-$label = ['pending' => __('unbestätigt'), 'active' => __('aktiv'), 'unsubscribed' => __('abgemeldet'), 'bounced' => __('gesperrt (Rückläufer)'), 'complained' => __('gesperrt (Beschwerde)')];
+$label = ['pending' => __('unbestätigt'), 'active' => __('aktiv'), 'unsubscribed' => __('abgemeldet'), 'bounced' => __('gesperrt (Rückläufer)'), 'complained' => __('gesperrt (Beschwerde)'), 'reconfirm' => __('Bestätigung ausstehend')];
 $pages = max(1, (int) ceil($result['total'] / 50));
 $q = fn(array $o) => url('/admin/newsletter/empfaenger') . '?' . http_build_query(array_filter($o + $filter + ['seite' => $page], fn($v) => $v !== '' && $v !== 0 && $v !== 1));
 ?>

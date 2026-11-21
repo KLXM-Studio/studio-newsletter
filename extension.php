@@ -5,6 +5,7 @@
  * Erweiterung „newsletter“: Anmeldung mit Double-Opt-in (Block), Verteiler, Ausgaben mit Testversand und Termin,
  * gedrosselter Versand über die Cron-Warteschlange, Rückläufer (Hard/Soft Bounce, Beschwerden) mit Sperrliste.
  *
+ * Altbestand übernehmen und bestätigen lassen (Repermit, je Verteiler, Standard aus): src/Repermit.php.
  * Versandarten: eigener SMTP-Server + Bounce-Postfach (IMAP, VERP) | Mailjet über SMTP | Mailjet über die API (je mit Webhooks).
  * Aufbau: src/Engine = Fachlogik ohne CMS (für eine spätere Fassung für REDAXO 6), src/*.php = Anbindung an KLXM Studio.
  * Aktivieren je Website: Administration → Funktionen & Erweiterungen. Recht: „Newsletter verwalten“ (newsletter.manage). Doku: README.md.
@@ -27,13 +28,13 @@ use Klxm\Newsletter\SiteController;
 return [
     'name' => 'newsletter',
     'label' => 'Newsletter – Anmeldung, Versand, Rückläufer',
-    'version' => '0.6.3',
+    'version' => '0.7.0',
     'requires' => '>=1.0.0',
     'description' => 'Newsletter mit Double-Opt-in, Verteilern und gedrosseltem Versand – über den eigenen SMTP-Server (Rückläufer per IMAP) oder Mailjet (SMTP oder API, Rückläufer per Webhook). Hard und Soft Bounces, Beschwerden und Sperrliste.',
     'author' => 'KLXM Crossmedia GmbH and contributors',
     'license' => 'MIT',
     'provides' => ['Menüpunkt „Newsletter“ (Ausgaben, Empfänger, Verteiler, Protokoll, Einstellungen)', 'Block „Newsletter-Anmeldung“',
-        'Seiten unter /newsletter (Bestätigen, Abmelden, Webversion)', 'E-Mail-Zweck „Newsletter versenden“', 'Versandweg „Mailjet (API)“ für E-Mail-Konten',
+        'Seiten unter /newsletter (Bestätigen, Abmelden, Webversion, Altbestand bestätigen)', 'Altbestand übernehmen und bestätigen lassen (je Verteiler, Standard aus)', 'E-Mail-Zweck „Newsletter versenden“', 'Versandweg „Mailjet (API)“ für E-Mail-Konten',
         'Geplante Aufgaben: versenden (jede Minute), Rückläufer abrufen (alle 5 Minuten), aufräumen (täglich)', 'Recht „Newsletter verwalten“'],
     'commands' => ['newsletter:send', 'newsletter:bounces', 'newsletter:purge', 'newsletter:selftest'],
     'schedule' => [
@@ -95,6 +96,8 @@ return [
             $r->get($b . '/bestaetigen/{token}', [$s, 'confirm']);
             $r->get($b . '/abmelden/{token}', [$s, 'unsubscribeForm']);
             $r->post($b . '/abmelden/{token}', [$s, 'unsubscribe']);
+            $r->get($b . '/altbestand/{token}', [$s, 'repermitForm']);
+            $r->post($b . '/altbestand/{token}', [$s, 'repermitAnswer']);
             $r->get($b . '/ausgabe/{token}', [$s, 'web']);
             $r->get($b . '/hook/mailjet/{token}', [$s, 'mailjet']);
             $r->post($b . '/hook/mailjet/{token}', [$s, 'mailjet']);
@@ -122,6 +125,11 @@ return [
             $r->post('/admin/newsletter/empfaenger/{id}', [$c, 'saveSubscriber'], $p);
             $r->get('/admin/newsletter/verteiler', [$c, 'lists'], $p);
             $r->post('/admin/newsletter/verteiler', [$c, 'saveList'], $p);
+            $r->get('/admin/newsletter/altbestand', [$c, 'repermits'], $p);
+            $r->post('/admin/newsletter/altbestand', [$c, 'repermitImport'], $p);
+            $r->get('/admin/newsletter/altbestand/{id}', [$c, 'repermit'], $p);
+            $r->post('/admin/newsletter/altbestand/{id}', [$c, 'repermitAction'], $p);
+            $r->get('/admin/newsletter/altbestand/{id}/vorschau', [$c, 'repermitPreview'], $p);
             $r->get('/admin/newsletter/protokoll', [$c, 'events'], $p);
             $r->get('/admin/newsletter/einstellungen', [$c, 'settings'], $p);
             $r->post('/admin/newsletter/einstellungen', [$c, 'saveSettings'], $p);
@@ -140,7 +148,9 @@ return [
         $on = fn(): bool => Newsletter::on();
         $x->command('newsletter:send', 'Newsletter: fällige Ausgaben starten und einen gedrosselten Stapel versenden', function (array $args) use ($on): int {
             if (!$on()) return 0;
-            Klxm\Newsletter\Campaigns::run(fn(string $m) => print($m . "\n"));
+            $st = Klxm\Newsletter\Campaigns::run(fn(string $m) => print($m . "\n"));
+            // Altbestand (Bestätigungsbitten): restliches Budget dieses Laufs, Fristen, Erinnerung
+            Klxm\Newsletter\Repermit::run(max(0, Newsletter::batch() - $st['sent'] - $st['failed']), fn(string $m) => print($m . "\n"));
             return 0;
         });
         $x->command('newsletter:bounces', 'Newsletter: Bounce-Postfach (IMAP) abrufen und auswerten', function (array $args) use ($on): int {
@@ -151,7 +161,8 @@ return [
         $x->command('newsletter:purge', 'Newsletter: Protokoll nach Aufbewahrungsfrist und unbestätigte Anmeldungen löschen', function (array $args) use ($on): int {
             if (!$on()) return 0;
             $r = Repo::purge((int) Newsletter::get('retention', 365) ?: 365);
-            echo "Protokoll: {$r['events']} gelöscht, unbestätigte Anmeldungen: {$r['pending']} gelöscht\n";
+            $rp = Klxm\Newsletter\Repermit::expireDue();
+            echo "Protokoll: {$r['events']} gelöscht, unbestätigte Anmeldungen: {$r['pending']} gelöscht, Altbestand: $rp Aktionen beendet\n";
             return 0;
         });
         $x->command('newsletter:selftest', 'Newsletter: Bounce-Erkennung, VERP, Regeln, Mailjet-Ereignisse, IMAP-Protokoll, Drosselung, Datenbank', fn(array $args): int => Klxm\Newsletter\SelfTest::run());

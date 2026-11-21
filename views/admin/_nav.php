@@ -3,12 +3,14 @@
 $items = [
     'campaigns' => ['/admin/newsletter', __('Ausgaben'), 'paper-plane-tilt'],
     'subscribers' => ['/admin/newsletter/empfaenger', __('Empfänger'), 'users'],
+    'repermit' => ['/admin/newsletter/altbestand', __('Altbestand'), 'user-check'],
     'lists' => ['/admin/newsletter/verteiler', __('Verteiler'), 'list-bullets'],
     'designs' => ['/admin/newsletter/designs', __('Designs'), 'palette'],
     'events' => ['/admin/newsletter/protokoll', __('Protokoll'), 'clipboard-text'],
     'settings' => ['/admin/newsletter/einstellungen', __('Einstellungen'), 'gear-six'],
 ];
-if (!\Klxm\Newsletter\Access::manager()) $items = array_intersect_key($items, ['campaigns' => 1, 'subscribers' => 1]);   // Redaktion: nur ihre Verteiler
+// Redaktion: nur ihre Verteiler; „Altbestand“ nur, wenn die Funktion bei einem ihrer Verteiler eingeschaltet ist
+if (!\Klxm\Newsletter\Access::manager()) $items = array_intersect_key($items, ['campaigns' => 1, 'subscribers' => 1] + (\Klxm\Newsletter\Repermit::lists() || $tab === 'repermit' ? ['repermit' => 1] : []));
 $current = ['campaign' => 'campaigns', 'subscriber' => 'subscribers', 'design' => 'designs'][$tab] ?? $tab;
 ?>
 <header class="adm-head">

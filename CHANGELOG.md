@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0 – 2026-11-21
+
+Altbestand übernehmen und bestätigen lassen (Re-Permission):
+- Neuer Bereich **Newsletter → Altbestand**, je Verteiler einschaltbar (Verteiler → „Altbestand bestätigen lassen“, Standard aus). Rechte wie bei den übrigen Newsletter-Funktionen: Verwaltung alle Verteiler, Redaktion nur ihre zugewiesenen.
+- Adressen einfügen (Tabelle/CSV, „E-Mail;Name“, Kopfzeile wird erkannt, bis 5000 Zeilen je Durchgang, weitere im Entwurf) mit Pflichtangabe der Herkunft – „früher eingewilligt, ohne Nachweis“, „Bestandskunde (§ 7 Abs. 3 UWG)“, „unbekannt“ – und Pflicht-Häkchen „Diese Personen haben den Newsletter bisher erhalten“. Bei „unbekannt“ Warnhinweis; Versand nur nach zusätzlicher ausdrücklicher Bestätigung (wird mit Name und Zeit vermerkt).
+- Übersprungen (mit Zählern): Sperrliste, Rückläufer/Beschwerde, schon bestätigt (aktiv im Verteiler), früher abgelehnt (dieser Verteiler), abgemeldet, laufende Anmeldung, doppelt, ungültig.
+- Neuer Empfänger-Status **„Bestätigung ausstehend“** (`reconfirm`): in keinem Verteiler, erhält keine Ausgaben. Wer schon in anderen Verteilern aktiv ist, bleibt dort aktiv.
+- Einmalige **Bestätigungsbitte**: feste neutrale Vorlage ohne Werbung und Bausteine (vom Design nur Logo, Trenner, Abstände, Fußtext), anpassbar sind Betreff und Einleitung (ohne Links). Knöpfe „Ja, weiter erhalten“ und „Nein, abmelden“ führen auf eine Seite mit Knopf (Link-Scanner ändern nichts); Ein-Klick-Abmeldung des E-Mail-Programms lehnt ab. Absender und Fußzeile des Verteilers, gedrosselter Versand über die vorhandene Engine (Cron „Newsletter versenden“, VERP/Bezug, Rückläufer nach den vorhandenen Regeln). Höchstens **eine Erinnerung** (von Hand oder nach N Tagen, Standard aus).
+- **Frist** (Standard 30 Tage, 7–90): danach – oder mit „Jetzt beenden und Unbestätigte löschen“ – werden Unbestätigte und Unzustellbare gelöscht; die Einträge bleiben nur als anonyme Zähler. Abgelehnte behalten die Prüfsumme der Adresse, damit ein späterer Import sie für diesen Verteiler überspringt.
+- **Nachweis** bei „Ja“: Zeitpunkt, IP-Kürzel, Herkunft, Verteiler, Wortlaut der Bitte mit SHA-256 (im Einwilligungsfeld bzw. bei schon Aktiven in der Notiz und im Eintrag); Ereignis „Altbestand bestätigt“ im Verlauf.
+- „Nein“ meldet sofort vom Verteiler ab (wie die vorhandene Abmeldung).
+- Übersicht je Aktion: bestätigt/offen/abgelehnt/unzustellbar mit Fortschrittsbalken, Datum der automatischen Löschung, Vorschau der Bitte.
+- Rückläufer-Regeln: Hard Bounce und Abmeldung beim Versanddienst gelten auch für „Bestätigung ausstehend“.
+- Selbsttest um 38 Prüfungen erweitert; Selbsttest räumt eine von Hand gesperrte Testadresse jetzt wirklich ab (Reihenfolge beim Aufräumen).
+
 ## 0.6.3 – 2026-10-22
 
 Sicherheit (Befunde der Sicherheitsprüfung):
