@@ -82,6 +82,9 @@ return [
         $x->adminAssets(fn(string $view) => $view === 'newsletter' ? ['css/newsletter-admin.css', 'js/newsletter-admin.js'] : []);
         $x->adminPage(['href' => '/admin/newsletter', 'label' => 'Newsletter', 'kind' => 'content', 'icon' => 'paper-plane-tilt', 'visible' => fn() => Access::any(),
             'feature' => Newsletter::FEATURE, 'description' => 'Ausgaben schreiben und versenden, Empfänger und Rückläufer']);
+        // Einstellungen (Absender, Konten, Rückläufer) zusätzlich unter Einrichtung → Funktionen & Erweiterungen und in der Suche
+        $x->adminPage(['href' => '/admin/newsletter/einstellungen', 'label' => 'Newsletter', 'kind' => 'settings', 'icon' => 'paper-plane-tilt',
+            'perm' => Newsletter::PERM, 'feature' => Newsletter::FEATURE, 'description' => 'Absender, Versandkonto, Rückläufer und Bounce-Postfach']);
         $x->dashboard(function (array $user): array {
             if (!Newsletter::on()) return [];
             $c = Repo::counts();
